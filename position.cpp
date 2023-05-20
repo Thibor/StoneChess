@@ -102,7 +102,7 @@ void Position::MakeMove(const Move m) {
 	Square to = m.to();
 	MoveFlags type = m.flags();
 	history[historyIndex].entry |= SQUARE_BB[to] | SQUARE_BB[fr];
-	move50 = type == QUIET && !type_of(board[fr]) ? ++move50 : 0;
+	move50 = (type == QUIET) && (type_of(board[fr]) != PAWN) ? ++move50 : 0;
 	switch (type) {
 	case QUIET:
 		//The to square is guaranteed to be empty here
