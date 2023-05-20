@@ -141,10 +141,10 @@ public:
 
 	inline Bitboard bitboard_of(Piece pc) const { return piece_bb[pc]; }
 	inline Bitboard bitboard_of(Color c, PieceType pt) const { return piece_bb[make_piece(c, pt)]; }
-	inline Bitboard AllPieces() {
-		return piece_bb[WHITE_PAWN] | piece_bb[WHITE_KNIGHT] | piece_bb[WHITE_BISHOP] |
-			piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN] | piece_bb[WHITE_KING] | piece_bb[BLACK_PAWN] | piece_bb[BLACK_KNIGHT] | piece_bb[BLACK_BISHOP] |
-			piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN] | piece_bb[BLACK_KING];
+	inline Bitboard AllPieces()const {
+		return 
+			piece_bb[WHITE_PAWN] | piece_bb[WHITE_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN] | piece_bb[WHITE_KING] | 
+			piece_bb[BLACK_PAWN] | piece_bb[BLACK_KNIGHT] | piece_bb[BLACK_BISHOP] | piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN] | piece_bb[BLACK_KING];
 	}
 	inline Piece at(Square sq) const { return board[sq]; }
 	inline Color ColorUs() const { return side_to_play; }
@@ -175,13 +175,13 @@ public:
 	inline Bitboard DiagonalSliders(Color c) const;
 	inline Bitboard OrthogonalSliders(Color c) const;
 	inline Bitboard AllPieces(Color c) const;
-	inline Bitboard AllPieces() const;
 	inline Bitboard AttackersFrom(Color c,Square s, Bitboard occ) const;
 	inline Bitboard Attackers(Square s) const;
-	inline void Flip() { side_to_play = ~side_to_play; hash ^= zobrist::hashColor; };
-
+	void MakeNull();
+	void UnmakeNull();
 	void MakeMove(const Move m);
 	void UnmakeMove(const Move m);
+	inline bool NotOnlyPawns()const;
 	Move* GenerateMoves(Color Us,Move* list,bool quiet = true);
 };
 
@@ -199,6 +199,12 @@ inline Bitboard Position::OrthogonalSliders(Color c) const {
 		piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN];
 }
 
+inline bool Position::NotOnlyPawns()const{
+	return side_to_play == WHITE ?
+		piece_bb[WHITE_KNIGHT] || piece_bb[WHITE_BISHOP] || piece_bb[WHITE_ROOK] || piece_bb[WHITE_QUEEN] :
+		piece_bb[BLACK_KNIGHT] || piece_bb[BLACK_BISHOP] || piece_bb[BLACK_ROOK] || piece_bb[BLACK_QUEEN];
+}
+
 //Returns a bitboard containing all the pieces of a given color
 inline Bitboard Position::AllPieces(Color c) const {
 	return c == WHITE ?
@@ -209,9 +215,7 @@ inline Bitboard Position::AllPieces(Color c) const {
 		piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN] | piece_bb[BLACK_KING];
 }
 
-inline Bitboard Position::AllPieces() const {
-	return AllPieces(WHITE) | AllPieces(BLACK);
-}
+//inline Bitboard Position::AllPieces() const {return AllPieces(WHITE) | AllPieces(BLACK);}
 
 //Returns a bitboard containing all pieces of a given color attacking a particluar square
 inline Bitboard Position::AttackersFrom(Color c,Square s, Bitboard occ) const {

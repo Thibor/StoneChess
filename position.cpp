@@ -30,11 +30,10 @@ std::ostream& operator<< (std::ostream& os, const Position& p) {
 		os << s << " " << i / 8 + 1 << " ";
 		for (int j = 0; j < 8; j++)
 			os << "| " << PIECE_STR[p.board[i + j]] << " ";
-		os << "| " << i / 8 + 1 << "\n";
+		os << "| " << i / 8 + 1 << endl;
 	}
 	os << s;
-	os << t << "\n";
-
+	os << t << endl;
 	os << "FEN: " << p.GetFen() << endl;
 	os << "Hash: 0x" << std::hex << p.hash << std::dec << endl;
 	os << "Side: " << (p.side_to_play == WHITE ? "w" : "b") << endl;
@@ -78,15 +77,32 @@ bool Position::InCheck() {
 	return AttackersFrom(~side_to_play, bsf(bitboard_of(side_to_play, KING)), AllPieces());
 }
 
+void Position::MakeNull() {
+	hash ^= zobrist::hashColor;
+	side_to_play = ~side_to_play;
+	++historyIndex;
+	history[historyIndex] = UndoInfo(history[historyIndex - 1]);
+	history[historyIndex].epsq = NO_SQUARE;
+}
+
+void Position::UnmakeNull() {
+	hash ^= zobrist::hashColor;
+	side_to_play = ~side_to_play;
+	--historyIndex;
+}
+
 //Plays a move in the position
 void Position::MakeMove(const Move m) {
+	hash ^= zobrist::hashColor;
 	Color c = side_to_play;
 	side_to_play = ~side_to_play;
 	++historyIndex;
 	history[historyIndex] = UndoInfo(history[historyIndex - 1]);
+	Square fr = m.from();
+	Square to = m.to();
 	MoveFlags type = m.flags();
-	history[historyIndex].entry |= SQUARE_BB[m.to()] | SQUARE_BB[m.from()];
-	move50 = type == QUIET ? ++move50 : 0;
+	history[historyIndex].entry |= SQUARE_BB[to] | SQUARE_BB[fr];
+	move50 = type == QUIET && !type_of(board[fr]) ? ++move50 : 0;
 	switch (type) {
 	case QUIET:
 		//The to square is guaranteed to be empty here
@@ -169,7 +185,7 @@ void Position::MakeMove(const Move m) {
 		move_piece(m.from(), m.to());
 		break;
 	}
-	inCheck = AttackersFrom(c, bsf(bitboard_of(~c, KING)), AllPieces(WHITE) | AllPieces(BLACK));
+	inCheck = AttackersFrom(c, bsf(bitboard_of(~c, KING)), AllPieces());
 	history[historyIndex].inCheck = inCheck;
 	history[historyIndex].hash = hash;
 	history[historyIndex].move50 = move50;
@@ -177,6 +193,7 @@ void Position::MakeMove(const Move m) {
 
 //Undos a move in the current position, rolling it back to the previous position
 void Position::UnmakeMove(const Move m) {
+	hash ^= zobrist::hashColor;
 	side_to_play = ~side_to_play;
 	Color c = side_to_play;
 	MoveFlags type = m.flags();

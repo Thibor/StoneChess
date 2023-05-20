@@ -64,9 +64,7 @@ void InfoPv() {
 	if (chronos.ponder || !chronos.post)
 		return;
 	uint64_t ms = sd.Ms();
-	if (ms <= 0)
-		return;
-	uint64_t nps = (sd.nodes * 1000) / ms;
+	uint64_t nps = ms?(sd.nodes * 1000) / ms:0;
 	string score = sd.bstScore > CHECKMATE_NEAR ? "mate " + to_string((CHECKMATE_MAX - sd.bstScore) >> 1) :
 		sd.bstScore < -CHECKMATE_NEAR ? "mate " + to_string((-CHECKMATE_MAX - sd.bstScore + 2) >> 1) :
 		"cp " + to_string(sd.bstScore);
@@ -134,31 +132,6 @@ int32_t Quiesce(S32 alpha, S32 beta) {
 	}
 	return alpha;
 }
-/*
-* inline void Board::makeNullMove() {
-    prev_states_.emplace_back(hash_key_, enpassant_square_, castling_rights_, half_moves_,
-                              Piece::NONE);
-
-    enpassant_square_ = NO_SQ;
-    side_to_move_ = ~side_to_move_;
-
-    full_moves_++;
-}
-
-inline void Board::unmakeNullMove() {
-    const auto &prev = prev_states_.back();
-
-    enpassant_square_ = prev.enpassant;
-    castling_rights_ = prev.castling;
-    half_moves_ = prev.half_moves;
-    hash_key_ = prev.hash;
-
-    full_moves_--;
-
-    prev_states_.pop_back();
-}
-
-*/
 
 //Main search loop
 int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta,bool doNull) {
@@ -216,10 +189,10 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta,bool doNull) {
 				return beta;
 			}
 			// Null move pruning
-			if (depth > 2 && staticEval >= beta && doNull) {
-				position.Flip();
+			if (depth > 2 && staticEval >= beta && doNull && position.NotOnlyPawns()) {
+				position.MakeNull();
 				Score score = -Search(depth - 4 - depth / 6, ply + 1, -beta, 1-beta, false);
-				position.Flip();
+				position.UnmakeNull();
 				if (score >= beta)
 					return beta;
 			}
@@ -272,6 +245,7 @@ int32_t SearchRoot(Picker& picker, S32 depth, S32 alpha, S32 beta) {
 			score = -Search(depth - 1, 2, -alpha - 1, -alpha,false);
 		if (score > alpha)
 			score = -Search(depth - 1, 2, -beta, -alpha,false);
+		//cout << m.ToUci()<<" "<<score << endl;
 		position.UnmakeMove(m);
 		if (best < score)
 			best = score;
@@ -312,7 +286,7 @@ void BestMove() {
 	int proMove = sd.moveSet ? (sd.moveOk * 100) / sd.moveSet : 0;
 	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
 	cout << "bestmove " << sd.bstMove.ToUci();
-	if (options.ponder && sd.ponderMove.IsOk())
+	if (options.ponder && sd.ponderMove.move)
 		cout << " ponder " << sd.ponderMove.ToUci();
 	cout << endl;
 }
@@ -335,7 +309,7 @@ void SearchIterate() {
 	picker.Fill();
 	picker.Sort();
 	S16 score = Search(1, 0, -CHECKMATE_MAX, CHECKMATE_MAX,false);
-	for (sd.depth = 1; sd.depth <= MAX_DEPTH; sd.depth++) {
+	for (sd.depth = 1; sd.depth < MAX_DEPTH; sd.depth++) {
 		score = SearchWiden(picker, sd.depth, score, 38);
 		if (chronos.flags & FMOVETIME)
 			if (sd.Ms() > chronos.movetime / 2)

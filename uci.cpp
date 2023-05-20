@@ -8,7 +8,7 @@ SOptions optionsOrg;
 //Get next word after uci command
 bool UciValue(vector<string> list, string command, string& value) {
 	value = "";
-	for (int n = 0; n < list.size() - 1; n++)
+	for (size_t n = 0; n < list.size() - 1; n++)
 		if (list[n] == command) {
 			value = list[n + 1];
 			return true;
@@ -268,12 +268,13 @@ void UciLoop() {
 	//MoveList moves(position,WHITE);
 	//for (Move m : moves)std::cout << "     " << m << " iscapture: " << m.is_capture() << " flags: " << m.flags() << std::endl;
 
-	//UciCommand("position fen 8/4Q3/8/4Q3/4K3/7k/8/8 w - - 9 85");
+	UciCommand("position fen 4rb1k/1bqn1pp1/p3rn1p/1p2pN2/1PP1p1N1/P1P2Q1P/1BB2PP1/3RR1K1 w - - 0 1");
 	//UciCommand("position startpos moves f2f4 d7d5 d2d3 e7e6 e2e4 f7f6 g2g3 e8f7 f1g2 f6f5 e4e5 g8h6 g1f3 f7g8 a2a3 c7c6 a1a2 d8b6");
 	//UciCommand("go wtime 52686 btime 49665 winc 0 binc 0");
 
-	//UciCommand("position startpos moves g1f3 e7e6 c2c4 c7c5 g2g3 d7d5 c4d5 e6d5 d2d4 g8f6 b1c3 b8c6 f1g2 f8e7 d4c5 d5d4 c3a4 d8a5 c1d2 a5b5 b2b4 e8g8 a2a3 b7b6 a1c1 c8e6 e1g1 e6d5 f1e1 f6e4 d2f4 b6c5 b4c5 d5b3 d1d3 b5a4 d3e4 a8c8 e2e3 d4e3 e4e3 e7f6 g2h3 c8a8 h3d7 b3a2 c1d1 a2c4 e3e4 c4b5 e4a4 b5a4 d1d6 a8d8 e1e3 a4b5 d7c6 d8d6 f4d6 b5c6 d6f8 g8f8 f3e5 f6e5 e3e5 g7g6 e5e2 h7h5 e2d2 f8e7 d2d6 c6b5 g1g2 g6g5 d6h6 g5g4 h2h3 f7f5 h6h5 e7e6 h3g4 f5g4 h5g5 b5e2 g5g6 e6d7 a3a4 a7a5 g6d6 d7c7 f2f4 g4f3 g2f2 e2c4 f2f3 c4b3 d6a6 b3a4 a6a5 a4d1 f3e4 c7c6 a5a1 d1e2 e4d4 e2f3 a1a6 c6b5 a6a7 b5c6 a7g7 c6b5 g3g4 b5c6 g4g5 f3e2 g7h7 e2g4 h7h6 c6d7 g5g6 g4e6 c5c6 d7c7 d4c5 e6b3 h6h7 c7c8 c5b6 c8d8 c6c7 d8c8 h7h8 c8d7 c7c8q d7e7 g6g7 b3f7 c8c7 e7f6 c7f4 f6e7 f4e5 e7d7 e5c7 d7e6 h8h6 e6f5 c7f7 f5e5 f7e7 e5d4 g7g8q d4c3 h6c6 c3b2 g8e6 b2b1 e6e5 b1a2 c6c5 a2b1 b6c6 b1a2 c6d5 a2a3 d5c4 a3a2 c5a5 a2b1 c4d3 b1c1");
+	//UciCommand("position startpos moves c2c4 c7c5 g1f3 g8f6 d2d4 d7d5 c4d5 c5d4 d1a4 d8d7 a4d4 f6d5 e2e4 d5f6 b1c3 d7d4 f3d4 e7e5 d4b5 b8a6 c1g5 f8c5 g5f6 g7f6 c3d5 e8f8 d5f6 f8g7 f6d5 h8d8 f1c4 f7f5 e4f5 c8f5 e1g1 a6b4 a1d1 f5g4 d1d2 a8c8 c4b3 b4d5 b3d5 c5b4 b5c3 c8c5 f2f3 g4e6 d5e6 d8d2 c3e4 d2b2 e4c5 b4c5 g1h1 b2d2 a2a4 g7f6 e6b3 c5e3 f1d1 d2b2 b3d5 h7h6 h2h3 b7b5 a4b5 b2b5 d5e4 b5b2 d1d7 f6e6 d7g7 a7a5 g7g6 e6e7 e4f5 e7f7 g6a6 e3b6 h1h2 f7f6 f5e4 f6e6 h3h4 e6d6 h4h5 d6e7 h2g3 e7d6 f3f4 b2b3 g3g4 e5f4 g4f4 d6c5 e4f3 b3b2 f4f5 b2d2 a6a8 d2d8 a8d8 b6d8 f3d1 c5b4 f5g6 d8g5 d1f3 a5a4 f3d5 a4a3 g6f7 b4c3 f7g6 c3b2 g6f5 a3a2 d5a2 b2a2 f5g6 a2b3 g6f5 b3c4 f5e4 g5d2 g2g3 c4c3 g3g4 d2g5 e4f3 c3d3 f3f2 d3e4 f2g3 e4e3 g3g2 e3f4 g2f1 f4g4 f1f2 g4h5 f2g3 h5g6 g3f2 h6h5 f2e2 g6f5 e2f1 h5h4 f1e2 h4h3 e2f2 g5h4 f2g1 h4g3 g1f1 f5g4 f1g1 g3e1 g1h2 e1h4 h2h1 h4f2 h1h2 f2e1 h2g1 e1g3 g1h1 g3e5 h1g1 e5f4 g1h1 g4f3 h1g1 f3g3 g1h1 g3g4 h1g1 f4e3 g1h1 e3d4 h1h2 d4f2 h2h1 f2h4 h1g1 h4f6 g1h2 f6d4 h2h1 d4a1 h1h2 a1f6 h2g1 f6e5 g1h1 g4f5 h1g1 e5c7 g1f2 f5f4 f2g1 c7b6 g1h2 f4g4 h2h1 b6d8 h1g1 d8c7 g1h1 g4f5 h1g1 c7d6 g1f2 f5e4 f2g1 e4f3 g1h1 d6e5 h1g1 e5g3 g1h1 f3e4 h1g1 g3d6 g1h1 e4f3 h1g1 d6e5 g1h1 f3e4 h1g1 e4e3 g1f1 e5h2 f1e1 h2f4 e1f1 h3h2 f1g2 f4b8");
 	//UciCommand("go movetime 1000");
+	UciCommand("go depth 8");
 	string line;
 	while (true) {
 		getline(cin, line);

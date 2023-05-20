@@ -114,7 +114,7 @@ enum MoveFlags : int {
 	PROMOTIONS = 0b0111,
 	PROMOTION_CAPTURES = 0b1100,
 	PR_KNIGHT = 0b0100, PR_BISHOP = 0b0101, PR_ROOK = 0b0110, PR_QUEEN = 0b0111,
-	PC_KNIGHT = 0b1100, PC_BISHOP = 0b1101, PC_ROOK = 0b1110, PC_QUEEN = 0b1111,
+	PC_KNIGHT = 0b1100, PC_BISHOP = 0b1101, PC_ROOK = 0b1110, PC_QUEEN = 0b1111
 };
 
 extern const string SQSTR[65];
@@ -209,10 +209,6 @@ public:
 
 	inline bool IsCapture() const {
 		return (move >> 12) & CAPTURE;
-	}
-
-	inline bool IsOk()const {
-		return move > 0;
 	}
 
 	string ToUci() {
