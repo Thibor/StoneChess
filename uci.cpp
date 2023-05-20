@@ -151,7 +151,7 @@ void UciCommand(string str) {
 		fen = trim(fen);
 		position.SetFen(fen == "" ? DEFAULT_FEN : fen);
 		for (string uci : moves) {
-			CMoveList list = GetMoveList();
+			CMoveList list = CMoveList(position);
 			for (Move m : list)
 				if (m.ToUci() == uci)
 					position.MakeMove(m);

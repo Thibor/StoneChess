@@ -28,8 +28,10 @@ std::ostream& operator<< (std::ostream& os, const Position& p) {
 	os << t;
 	for (int i = 56; i >= 0; i -= 8) {
 		os << s << " " << i / 8 + 1 << " ";
-		for (int j = 0; j < 8; j++)
-			os << "| " << PIECE_STR[p.board[i + j]] << " ";
+		for (int j = 0; j < 8; j++) {
+			Piece piece = p.board[i + j];
+			os << "| " << PIECE_STR[piece] << " ";
+		}
 		os << "| " << i / 8 + 1 << endl;
 	}
 	os << s;
@@ -698,13 +700,5 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 	}
 
 	return list;
-}
-
-CMoveList GetMoveList() {
-	return CMoveList(position);
-}
-
-CMoveList GetMoveList(Color color) {
-	return CMoveList(position, color);
 }
 

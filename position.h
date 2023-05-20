@@ -282,6 +282,3 @@ public:
 private:
 	Move* last;
 };
-
-CMoveList GetMoveList();
-CMoveList GetMoveList(Color color);
