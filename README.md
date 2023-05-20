@@ -1,4 +1,4 @@
-#StoneChess
+# StoneChess
 
 <p align="center">
 <img src="https://github.com/Thibor/StoneChess/blob/master/Resources/stonechess.png" />
