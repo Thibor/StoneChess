@@ -39,6 +39,7 @@ int main() {
 	PrintWelcome();
 	InputInit();
 	EvalInit();
+	SearchInit();
 	initialise_all_databases();
 	zobrist::initialise_zobrist_keys();
 	position.SetFen();

@@ -69,7 +69,7 @@ const Bitboard SQUARE_BB[65] = {
 };
 
 //Prints the bitboard, little-endian format
-void print_bitboard(Bitboard b) {
+void PrintBitboard(Bitboard b) {
 	for (int i = 56; i >= 0; i -= 8) {
 		for (int j = 0; j < 8; j++)
 			std::cout << (char)(((b >> (i + j)) & 1) + '0') << " ";

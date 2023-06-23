@@ -22,9 +22,19 @@ using namespace std;
 #define Hash unsigned __int64
 #define Score signed __int16
 
+typedef uint64_t Bitboard;
+
+const Bitboard bbLight = 0xaa55aa55aa55aa55ull;
+const Bitboard bbDark = 0x55aa55aa55aa55aaull;
+
 const size_t NCOLORS = 2;
+
 enum Color : int {
 	WHITE, BLACK
+};
+
+enum NodeTypes {
+	NTPV,NTNONPV
 };
 
 //Inverts the color (WHITE -> BLACK) and (BLACK -> WHITE)
@@ -73,9 +83,6 @@ constexpr Color color_of(Piece pc) {
 	return Color((pc & 0b1000) >> 3);
 }
 
-
-
-typedef uint64_t Bitboard;
 
 const size_t NSQUARES = 64;
 enum Square : int {
@@ -126,7 +133,7 @@ extern const Bitboard MASK_DIAGONAL[15];
 extern const Bitboard MASK_ANTI_DIAGONAL[15];
 extern const Bitboard SQUARE_BB[65];
 
-extern void print_bitboard(Bitboard b);
+extern void PrintBitboard(Bitboard b);
 
 extern const Bitboard k1;
 extern const Bitboard k2;
@@ -206,10 +213,7 @@ public:
 	inline Square from() const { return Square((move >> 6) & 0x3f); }
 	inline int to_from() const { return move & 0xffff; }
 	inline MoveFlags flags() const { return MoveFlags((move >> 12) & 0xf); }
-
-	inline bool IsCapture() const {
-		return (move >> 12) & CAPTURE;
-	}
+	inline bool IsCapture() const {return (move >> 12) & CAPTURE;}
 
 	string ToUci() {
 		string uci = SQSTR[from()] + SQSTR[to()];

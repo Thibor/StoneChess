@@ -11,6 +11,7 @@ U64 zobrist::hashColor;
 //Used to incrementally update the hash key of a position
 U64 zobrist::zobrist_table[NPIECES][NSQUARES];
 
+const int phases[] = { 0, 1, 1, 2, 4, 0 };
 
 //Initializes the zobrist table with random 64-bit numbers
 void zobrist::initialise_zobrist_keys() {
@@ -42,23 +43,26 @@ std::ostream& operator<< (std::ostream& os, const Position& p) {
 	return os;
 }
 
-void Position::MoveList(Color color, Move* list, int& count) {
-	Move* last = GenerateMoves(color, list);
+void Position::Clear() {
+	side_to_play = WHITE;
+	historyIndex = 0;
+	hash = 0;
+	pinned = 0;
+	checkers = 0;
+	for (int n = 0; n < NSQUARES; n++)
+		board[n] = NO_PIECE;
+	for (int n = 0; n < NPIECES; n++)
+		piece_bb[n] = 0;
+	history[0] = UndoInfo();
+};
+
+void Position::MoveList(Color color, Move* list, int& count, bool quiet) {
+	Move* last = GenerateMoves(color, list, quiet);
 	count = last - list;
 }
 
-void Position::MoveListQ(Color color, Move* list, int& count) {
-	Move* last = GenerateMoves(color, list, false);
-	count = last - list;
-}
-
-void Position::MoveList(Move* list, int& count) {
+void Position::MoveList(Move* list, int& count, bool quiet) {
 	Move* last = GenerateMoves(ColorUs(), list);
-	count = last - list;
-}
-
-void Position::MoveListQ(Move* list, int& count) {
-	Move* last = GenerateMoves(ColorUs(), list, false);
 	count = last - list;
 }
 
@@ -77,6 +81,21 @@ bool Position::InCheck(Color c) {
 
 bool Position::InCheck() {
 	return AttackersFrom(~side_to_play, bsf(bitboard_of(side_to_play, KING)), AllPieces());
+}
+
+int Position::Phase() {
+	return pop_count(piece_bb[WHITE_KNIGHT] | piece_bb[BLACK_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[BLACK_BISHOP]) +
+		pop_count(piece_bb[WHITE_ROOK] | piece_bb[BLACK_ROOK]) * 2 +
+		sparse_pop_count(piece_bb[WHITE_QUEEN] | piece_bb[BLACK_QUEEN]) * 4;
+}
+
+bool Position::IsRepetition() {
+	for (int n = historyIndex - 2; n >= historyIndex - move50; n -= 2)
+		if (n < 0)
+			return false;
+		else if (history[n].hash == hash)
+			return true;
+	return false;
 }
 
 void Position::MakeNull() {
@@ -188,9 +207,11 @@ void Position::MakeMove(const Move m) {
 		break;
 	}
 	inCheck = AttackersFrom(c, bsf(bitboard_of(~c, KING)), AllPieces());
+	phase = Phase();
 	history[historyIndex].inCheck = inCheck;
 	history[historyIndex].hash = hash;
 	history[historyIndex].move50 = move50;
+	history[historyIndex].phase = phase;
 }
 
 //Undos a move in the current position, rolling it back to the previous position
@@ -253,6 +274,7 @@ void Position::UnmakeMove(const Move m) {
 	--historyIndex;
 	inCheck = history[historyIndex].inCheck;
 	move50 = history[historyIndex].move50;
+	phase = history[historyIndex].phase;
 }
 
 void Position::SetFen(const std::string& fen) {
@@ -291,6 +313,7 @@ void Position::SetFen(const std::string& fen) {
 		}
 	}
 	inCheck = InCheck();
+	phase = Phase();
 }
 
 //Returns the FEN (Forsyth-Edwards Notation) representation of the position
@@ -449,7 +472,17 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 			//If the checker is either a pawn or a knight, the only legal moves are to capture
 		//the checker. Only non-pinned pieces can capture it
 			b1 = AttackersFrom(Us, checker_square, all) & not_pinned;
-			while (b1) *list++ = Move(pop_lsb(&b1), checker_square, CAPTURE);
+			while (b1) {
+				Square sf = pop_lsb(&b1);
+				if (type_of(board[sf]) == PAWN && RelativeRank(Us, rank_of(sf)) == RANK7) {
+					*list++ = Move(sf, checker_square, PC_KNIGHT);
+					*list++ = Move(sf, checker_square, PC_BISHOP);
+					*list++ = Move(sf, checker_square, PC_ROOK);
+					*list++ = Move(sf, checker_square, PC_QUEEN);
+				}
+				else
+					*list++ = Move(sf, checker_square, CAPTURE);
+			}
 
 			return list;
 		}
@@ -666,6 +699,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 	b1 = bitboard_of(Us, PAWN) & not_pinned & MASK_RANK[RelativeRank(Us, RANK7)];
 	if (b1) {
 		//Quiet promotions
+		//if (quiet) {
 		b2 = Shift(RelativeDir(Us, NORTH), b1) & quiet_mask;
 		while (b2) {
 			s = pop_lsb(&b2);
@@ -674,8 +708,8 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 			*list++ = Move(s - RelativeDir(Us, NORTH), s, PR_BISHOP);
 			*list++ = Move(s - RelativeDir(Us, NORTH), s, PR_ROOK);
 			*list++ = Move(s - RelativeDir(Us, NORTH), s, PR_QUEEN);
+			//}
 		}
-
 		//Promotion captures
 		b2 = Shift(RelativeDir(Us, NORTH_WEST), b1) & capture_mask;
 		b3 = Shift(RelativeDir(Us, NORTH_EAST), b1) & capture_mask;

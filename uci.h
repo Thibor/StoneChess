@@ -2,6 +2,7 @@
 
 #include "chronos.h"
 #include "CTranspositionTable.h"
+#include "position.h"
 #include "search.h"
 #include "util.h"
 

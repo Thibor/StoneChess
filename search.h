@@ -43,4 +43,5 @@ struct sSearchDriver {
 };
 extern sSearchDriver sd;
 
+void SearchInit();
 void SearchIterate();

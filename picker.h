@@ -5,15 +5,17 @@
 
 struct PickerE {
 	Move move;
-	S16 score=0;
+	Score score = 0;
+	Score see = 0;
 };
 
 class Picker {
 public:
+	int index = 0;
 	int count = 0;
 	Move list[228];
 	PickerE scores[228];
-	void Fill(bool q=false);
+	void Fill();
 	int GetIndex(Move m);
 	PickerE Pick(int index);
 	void SetBest(int index);
