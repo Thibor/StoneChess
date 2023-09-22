@@ -213,7 +213,7 @@ public:
 	inline Square from() const { return Square((move >> 6) & 0x3f); }
 	inline int to_from() const { return move & 0xffff; }
 	inline MoveFlags flags() const { return MoveFlags((move >> 12) & 0xf); }
-	inline bool IsCapture() const {return (move >> 12) & CAPTURE;}
+	inline bool IsCapture() const { return (move >> 12) & CAPTURE; }
 
 	string ToUci() {
 		string uci = SQSTR[from()] + SQSTR[to()];

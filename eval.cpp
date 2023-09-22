@@ -12,7 +12,16 @@ constexpr int Eg(int score) {
 	return (score + 0x8000) >> 16;
 }
 
+constexpr int Ag(int score) {
+	return max(Mg(score), Eg(score));
+}
+
+constexpr int Pg(int score, int phase) {
+	return (Mg(score) * phase + Eg(score) * (24 - phase)) / 24;
+}
+
 const int materialOrg[] = { S(79, 128), S(421, 292), S(404, 327), S(556, 596), S(1271, 1060), 0 };
+
 int material[6] = {};
 
 void EvalInit() {
@@ -26,7 +35,7 @@ void EvalInit() {
 	int eloRange = options.eloMax - options.eloMin;
 	int range = 800 - (elo * 800) / eloRange;
 	for (int r = 0; r < 5; r++) {
-		int mg = (- 100 * (eloRange - elo) + Mg(materialOrg[r]) * elo)/eloRange;
+		int mg = (-500 * (eloRange - elo) + Mg(materialOrg[r]) * elo)/eloRange;
 		int eg = Eg(materialOrg[r]);
 		material[r] = S(mg,eg);
 	}
@@ -99,18 +108,6 @@ S32 See(Move m) {
 	return gain[0];
 }
 
-constexpr int Ag(int score) {
-	return max(Mg(score), Eg(score));
-}
-
-constexpr int Pg(int score, int phase) {
-	return (Mg(score) * phase + Eg(score) * (24 - position.phase)) / 24;
-}
-
-constexpr int Pg(int score) {
-	return Pg(score,position.phase);
-}
-
 U64 shelterKingW = 0xE7;
 U64 shelterKingB = 0xE700000000000000ull;
 U64 shelterKW = 0x0700;
@@ -162,13 +159,13 @@ S32 Eval(Square sq, int type) {
 	const Rank rank = rank_of(sq);
 	double file = file_of(sq);
 	const Rank rankR = RelativeRank(position.ColorUs(), rank);
-	S32 result = material[type];
+	S32 result = materialMax[type];
 	result += rankR << 2;
 	result += 3- floor(abs(file - 3.5));
 	return result;
 }
 
-S32 Eval(Move m, Score& see) {
+S32 Eval(int phase,Move m, Score& see) {
 	Square fr = m.from();
 	Square to = m.to();
 	int flags = m.flags();
@@ -184,7 +181,7 @@ S32 Eval(Move m, Score& see) {
 	if (flags & MoveFlags::PROMOTION)
 		frType = 1 + flags & 3;
 	score += Eval(to, frType);
-	return Pg(score);
+	return Pg(score,phase);
 }
 
 SEval Eval(Position& pos, Color color, Square kpUs, Square kpEn) {
@@ -286,6 +283,7 @@ int ScoreSe(SEval se) {
 }
 
 S32 ShowEval() {
+	int phase = position.Phase();
 	Square kpW = bsf(position.piece_bb[WHITE_KING]);
 	Square kpB = bsf(position.piece_bb[BLACK_KING]);
 	SEval seW = Eval(position, WHITE, kpW, kpB);
@@ -303,22 +301,19 @@ S32 ShowEval() {
 	ShowScore("king", seW.scorePiece[5], seB.scorePiece[5]);
 	ShowScore("king shelter", seW.scoreKingShelter, seB.scoreKingShelter);
 	ShowScore("total", ScoreSe(seW), ScoreSe(seB));
-	cout << "phase " << position.phase << endl;
+	cout << "phase " << phase << endl;
 	S32 score = S(10, 10) + ScoreSe(seW) - ScoreSe(seB);
-	int mg = Mg(score);
-	int eg = Eg(score);
-	score = (mg * position.phase + eg * (24 - position.phase)) / 24;
+	score = Pg(score, phase);
 	return position.ColorUs() ? -score : score;
 }
 
 S32 Eval() {
+	int phase = position.Phase();
 	Square kpW = bsf(position.piece_bb[WHITE_KING]);
 	Square kpB = bsf(position.piece_bb[BLACK_KING]);
 	SEval seW = Eval(position, WHITE, kpW, kpB);
 	SEval seB = Eval(position, BLACK, kpB, kpW);
 	int score = S(10, 10) + ScoreSe(seW) - ScoreSe(seB);
-	int mg = Mg(score);
-	int eg = Eg(score);
-	score = (mg * position.phase + eg * (24 - position.phase)) / 24;
+	score = Pg(score, phase);
 	return position.ColorUs() ? -score : score;
 }

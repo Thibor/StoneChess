@@ -38,7 +38,6 @@ namespace zobrist {
 
 //Stores position information which cannot be recovered on undo-ing a move
 struct UndoInfo {
-	bool inCheck;
 	//The bitboard of squares on which pieces have either moved from, or have been moved to. Used for castling legality checks
 	Bitboard entry;
 
@@ -52,13 +51,11 @@ struct UndoInfo {
 
 	int move50;
 
-	int phase;
-
-	UndoInfo() : inCheck(false), hash(0), move50(0), phase(0), entry(0), captured(NO_PIECE), epsq(NO_SQUARE) {}
+	constexpr UndoInfo() : hash(0), move50(0), entry(0), captured(NO_PIECE), epsq(NO_SQUARE) {}
 
 	//This preserves the entry bitboard across moves
-	UndoInfo(const UndoInfo& prev) :
-		inCheck(false), hash(0), move50(0),phase(0), entry(prev.entry), captured(NO_PIECE), epsq(NO_SQUARE) {}
+	constexpr UndoInfo(const UndoInfo& prev) :
+		hash(0), move50(0), entry(prev.entry), captured(NO_PIECE), epsq(NO_SQUARE) {}
 };
 
 class Position {
@@ -70,10 +67,8 @@ private:
 	//A mailbox representation of the board. Stores the piece occupying each square on the board
 	Piece board[NSQUARES];
 public:
-	bool inCheck = false;
 	int move50;
 	int historyIndex;
-	int phase;
 
 	//A bitboard of the locations of each piece
 	Bitboard piece_bb[NPIECES];
@@ -90,7 +85,7 @@ public:
 	Bitboard pinned;
 
 
-	Position() : piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{},
+	constexpr Position() : piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{},
 		hash(0), pinned(0), checkers(0) {
 
 		//Sets all squares on the board as empty

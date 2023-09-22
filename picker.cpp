@@ -1,11 +1,11 @@
 #include "picker.h"
 
-void Picker::Fill() {
+void Picker::Fill(int phase) {
 	index = 0;
 	for (int n = 0; n < count; n++) {
 		Move m = list[n];
 		scores[n].move = m;
-		scores[n].score = Eval(m,scores[n].see);
+		scores[n].score = Eval(phase,m,scores[n].see);
 	}
 }
 

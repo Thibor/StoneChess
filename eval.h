@@ -14,8 +14,10 @@ struct SEval {
 	int scorePiece[6] = {};
 };
 
+const int materialMax[] = { 128,421,404, 596, 1271, 0 };
+
 S32 Eval();
-S32 Eval(Move m,Score &see);
+S32 Eval(int phase,Move m,Score &see);
 void EvalInit();
 S32 See(Move m);
 S32 ShowEval();

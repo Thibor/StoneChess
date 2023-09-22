@@ -206,12 +206,8 @@ void Position::MakeMove(const Move m) {
 		move_piece(m.from(), m.to());
 		break;
 	}
-	inCheck = AttackersFrom(c, bsf(bitboard_of(~c, KING)), AllPieces());
-	phase = Phase();
-	history[historyIndex].inCheck = inCheck;
 	history[historyIndex].hash = hash;
 	history[historyIndex].move50 = move50;
-	history[historyIndex].phase = phase;
 }
 
 //Undos a move in the current position, rolling it back to the previous position
@@ -272,9 +268,7 @@ void Position::UnmakeMove(const Move m) {
 		break;
 	}
 	--historyIndex;
-	inCheck = history[historyIndex].inCheck;
 	move50 = history[historyIndex].move50;
-	phase = history[historyIndex].phase;
 }
 
 void Position::SetFen(const std::string& fen) {
@@ -312,8 +306,6 @@ void Position::SetFen(const std::string& fen) {
 			break;
 		}
 	}
-	inCheck = InCheck();
-	phase = Phase();
 }
 
 //Returns the FEN (Forsyth-Edwards Notation) representation of the position

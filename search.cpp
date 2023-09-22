@@ -21,7 +21,7 @@ void LmrInit() {
 	int d, m;
 	for (d = 0; d < 256; d++)
 		for (m = 0; m < 256; m++)
-			lmrReductions[d][m] = 0.5 + log(d) * log(m) * 100 / LMR_DIV;
+			lmrReductions[d][m] = 0.5 + log(d + 1) * log(m + 1) * 100 / LMR_DIV;
 }
 
 void SearchInit() {
@@ -87,29 +87,13 @@ void InfoPv() {
 }
 
 //Quiesce search
-int32_t Quiesce(S32 alpha, S32 beta, NodeTypes nt) {
+int32_t Quiesce(int alpha, int beta, NodeTypes nt,int phase) {
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
 		return alpha;
-	/*CRec* rec = tt.GetRec(position.GetHash());
-	if (rec != nullptr) {
-		if (rec->type == NODE_PV) {
-			return rec->score;
-		}
-		else if (rec->type == NODE_CUT) {
-			if (rec->score >= beta) {
-				return beta;
-			}
-		}
-		else if (rec->type == NODE_ALL) {
-			if (rec->score <= alpha) {
-				return alpha;
-			}
-		}
-	}*/
-	S32 staticEval = Eval();
-	S32 score = staticEval;
+	int staticEval = Eval();
+	int score = staticEval;
 	if (score >= beta)
 		return beta;
 	if (score > alpha)
@@ -120,43 +104,54 @@ int32_t Quiesce(S32 alpha, S32 beta, NodeTypes nt) {
 	position.MoveList(color, picker.list, picker.count, false);
 	if (!picker.count)
 		return alpha;
-	picker.Fill();
+	picker.Fill(phase);
 	//if (nt == NTNONPV) {
-		CRec* rec = tt.GetRec(position.GetHash());
-		if (rec != nullptr)
-			if (picker.SetMove(rec->move)) {
-				if (rec->type == NODE_PV)
-					return rec->score;
-				else if (rec->type == NODE_CUT) {
-					if (rec->score >= beta)
-						return beta;
-				}
-				else if (rec->type == NODE_ALL)
-					if (rec->score <= alpha)
-						return alpha;
-
-				if ((rec->type == NODE_PV) ||
-					(rec->type == NODE_CUT && staticEval < rec->score) ||
-					(rec->type == NODE_ALL && staticEval > rec->score))
-					staticEval = rec->score;
+	CRec* rec = tt.GetRec(position.GetHash());
+	if (rec != nullptr)
+		if (picker.SetMove(rec->move)) {
+			if (rec->type == NODE_PV)
+				return rec->score;
+			else if (rec->type == NODE_CUT) {
+				if (rec->score >= beta)
+					return beta;
+				//return rec->score;
 			}
+			else if (rec->type == NODE_ALL)
+				if (rec->score <= alpha)
+					return alpha;
+			//return rec->score;
+
+			if ((rec->type == NODE_PV) ||
+				(rec->type == NODE_CUT && staticEval < rec->score) ||
+				(rec->type == NODE_ALL && staticEval > rec->score))
+				staticEval = rec->score;
+		}
 	//}
 	S32 bestScore = -CHECKMATE_MAX;
 	U16 bestMove = 0;
 	S32 oldAlpha = alpha;
+	bool inCheck = position.InCheck();
 	for (int n = 0; n < picker.count; n++)
 	{
 		//PickerE pe = picker.Pick(n);
 		//PickerE pe = picker.scores[n];
-		PickerE pe = n<picker.index ?  picker.scores[n] : picker.Pick(n);
+		PickerE pe = n < picker.index ? picker.scores[n] : picker.Pick(n);
 		Move m = pe.move;
+		if (n && !inCheck && pe.see < 0)break;
+		//if (n)break;
 		//if (!position.inCheck && nt == NTNONPV && pe.see < 0)continue;
 		//if (Eval(m, true) < 0)
 		//if (!position.inCheck && nt == NTNONPV && (staticEval + 325 + pe.see < alpha))continue;
 		//if (!position.inCheck && nt == NTNONPV && (staticEval + 225 + pe.see < alpha))continue;
 		//if (!position.inCheck && pe.see < -325)continue;
+		/*if (n && staticEval + 50 + materialMax[rank_of(m.to())] < alpha) {
+			//continue;
+			alpha = staticEval;
+			bestScore = alpha;
+			break;
+		}*/
 		position.MakeMove(m);
-		score = -Quiesce(-beta, -alpha, nt);
+		score = -Quiesce(-beta, -alpha, nt,phase);
 		position.UnmakeMove(m);
 		if (chronos.gameOver)
 			return alpha;
@@ -178,16 +173,17 @@ int32_t Quiesce(S32 alpha, S32 beta, NodeTypes nt) {
 }
 
 //Main search loop
-int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNull) {
+int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt,int phase, bool doNull) {
 	if ((position.move50 >= 100) || (position.IsRepetition()))
 		return ply & 1 ? -options.contempt : options.contempt;
 	S32 score;
 	bool raised_alpha = false;
 	Color color = position.ColorUs();
-	if (position.inCheck)
+	bool inCheck = position.InCheck();
+	if (inCheck)
 		depth++;
 	if (depth < 1)
-		return Quiesce(alpha, beta, nt);
+		return Quiesce(alpha, beta, nt,phase);
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
@@ -201,11 +197,11 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 	if (alpha >= beta) return alpha;
 
 	//trasposition table pruning
-	int16_t staticEval = Eval();
+	int staticEval = Eval();
 	Picker picker;
 	position.MoveList(color, picker.list, picker.count);
-	if (!picker.count)return position.inCheck ? -CHECKMATE_MAX + ply : 0;
-	picker.Fill();
+	if (!picker.count)return inCheck ? -CHECKMATE_MAX + ply : 0;
+	picker.Fill(phase);
 	if (position.killers[ply][1].move)
 		picker.SetMove(position.killers[ply][1]);
 	if (position.killers[ply][0].move)
@@ -218,16 +214,18 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 					return rec->score;
 				else if (rec->type == NODE_CUT) {
 					if (rec->score >= beta) {
-						if (position.killers[ply][0].move !=rec->move && position.killers[ply][1].move != rec->move) {
+						if (position.killers[ply][0].move != rec->move && position.killers[ply][1].move != rec->move) {
 							position.killers[ply][1].move = position.killers[ply][0].move;
 							position.killers[ply][0].move = rec->move;
 						}
 						return beta;
+						//return rec->score;
 					}
 				}
 				else if (rec->type == NODE_ALL)
 					if (rec->score <= alpha)
 						return alpha;
+			//return rec->score;
 
 			if ((rec->type == NODE_PV) ||
 				(rec->type == NODE_CUT && staticEval < rec->score) ||
@@ -235,7 +233,7 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 				staticEval = rec->score;
 		}
 	//if (!position.inCheck && position.move50){
-	if (!position.inCheck && nt == NTNONPV) {
+	if (!inCheck && nt == NTNONPV) {
 		// Reverse futility pruning
 		if (depth < 5) {
 			const int margins[] = { 0, 50, 100, 200, 300 };
@@ -245,14 +243,14 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 			// Null move pruning
 			if (depth > 2 && staticEval >= beta && doNull && position.NotOnlyPawns()) {
 				position.MakeNull();
-				Score score = -Search(depth - 4 - depth / 6, ply + 1, -beta, 1 - beta, NTNONPV, false);
+				Score score = -Search(depth - 4 - depth / 6, ply + 1, -beta, 1 - beta, NTNONPV,phase, false);
 				position.UnmakeNull();
 				if (score >= beta)
 					return beta;
 			}
 			// Razoring
 			if (depth == 1 && staticEval + 200 < alpha)
-				return Quiesce(alpha, beta, nt);
+				return Quiesce(alpha, beta, nt,phase);
 		}
 	}
 	S16 bestScore = -CHECKMATE_MAX;
@@ -263,19 +261,27 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 		//PickerE pe = picker.Pick(n);
 		//if (picker.index > 3)cout << picker.index << endl;
 		//PickerE pe = picker.scores[n];
-		PickerE pe = n < picker.index? picker.scores[n] : picker.Pick(n);
+		PickerE pe = n < picker.index ? picker.scores[n] : picker.Pick(n);
 		Move m = pe.move;
 		int lmr = lmrReductions[depth][n];
+		//if (lmr>0 && !inCheck && nt == NTNONPV && pe.see < 0)continue;
+		if (lmr>n && !inCheck && pe.see <= 0)break;
 		//if (!position.inCheck && lmr && pe.see < -225 && alpha == beta - 1) {
-		if (lmr && !position.inCheck && nt == NTNONPV && pe.see < 0)continue;
 		//if (lmr && !position.inCheck && nt == NTNONPV && (staticEval + depth*100 + pe.see < alpha))continue;
 		//if (!position.inCheck && lmr && pe.see < 0 && alpha == beta - 1)continue;
 	//if (!position.inCheck && lmr && pe.see < 0 && nt == NTNONPV)continue;
 		//if (depth <= 5 && pe.see <= -100 * depth && nt == NTNONPV && n) continue;
+		/*if (!inCheck && n > 0 && staticEval + 150 * depth + materialMax[rank_of(m.to())] < alpha) {
+			//continue;
+			alpha = staticEval;
+			bestScore = alpha;
+			break;
+		}*/
+
 		position.MakeMove(m);
 		score = alpha + 1;
-		if (!n || position.inCheck)
-			score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV, true);
+		if (!n || inCheck)
+			score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV,phase, true);
 		else {
 			int reduction = lmr;
 			//int reduction = position.move50 ? lmr : 0;
@@ -287,11 +293,11 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 				}
 			}
 			//if(position.move50)
-			score = -Search(depth - 1 - reduction, ply + 1, -alpha - 1, -alpha, NTNONPV, true);
+			score = -Search(depth - 1 - reduction, ply + 1, -alpha - 1, -alpha, NTNONPV,phase, true);
 			if (reduction && score > alpha)
-				score = -Search(depth - 1, ply + 1, -alpha - 1, -alpha, NTNONPV, true);
+				score = -Search(depth - 1, ply + 1, -alpha - 1, -alpha, NTNONPV,phase, true);
 			if (score > alpha && score < beta)
-				score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV, true);
+				score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV,phase, true);
 		}
 		position.UnmakeMove(m);
 		if (chronos.gameOver)
@@ -319,19 +325,19 @@ int32_t Search(S32 depth, S32 ply, S32 alpha, S32 beta, NodeTypes nt, bool doNul
 }
 
 //Search first ply
-int32_t SearchRoot(Picker& picker, S32 depth, S32 alpha, S32 beta) {
+int32_t SearchRoot(Picker& picker, S32 depth, S32 alpha, S32 beta,int phase) {
 	int32_t score;
 	int32_t best = -CHECKMATE_MAX;
 	Color color = position.ColorUs();
 	for (int n = 0; n < picker.count; n++) {
 		Move m = picker.scores[n].move;
 		position.MakeMove(m);
+		bool inCheck = position.InCheck();
 		score = alpha + 1;
-		if (!position.inCheck && (best > -CHECKMATE_MAX))
-			score = -Search(depth - 1, 2, -alpha - 1, -alpha, NTNONPV, false);
+		if (!inCheck && (best > -CHECKMATE_MAX))
+			score = -Search(depth - 1, 2, -alpha - 1, -alpha, NTNONPV, phase,false);
 		if (score > alpha)
-			score = -Search(depth - 1, 2, -beta, -alpha, NTPV, false);
-		//cout << m.ToUci()<<" "<<score <<" "<<m.s << endl;
+			score = -Search(depth - 1, 2, -beta, -alpha, NTPV,phase, false);
 		position.UnmakeMove(m);
 		if (best < score)
 			best = score;
@@ -351,15 +357,13 @@ int32_t SearchRoot(Picker& picker, S32 depth, S32 alpha, S32 beta) {
 }
 
 //Attempt to narrow the window
-S16 SearchWiden(Picker& picker, S16 depth, S16 score, U32 window) {
-	if (position.inCheck)
-		return SearchRoot(picker, depth, -CHECKMATE_MAX, CHECKMATE_MAX);
+S16 SearchWiden(Picker& picker, S16 depth, S16 score, U32 window, U32 research,int phase) {
 	S32	alpha = score - window;
 	S32	beta = score + window;
-	score = SearchRoot(picker, depth, alpha, beta);
+	score = SearchRoot(picker, depth, alpha, beta,phase);
 	if (!chronos.gameOver && (score <= alpha || score >= beta)) {
-		window <<= 1;
-		return SearchWiden(picker, depth, score, window);
+		window <<= ++research;
+		return SearchWiden(picker, depth, score, window, research,phase);
 	}
 	return score;
 }
@@ -368,7 +372,7 @@ void BestMove() {
 	if (chronos.ponder || !chronos.post)
 		return;
 	InfoPv();
-	uint64_t proNode = sd.nodes ? (sd.nodesq * 100) / sd.nodes : 0;
+	U64 proNode = sd.nodes ? ((sd.nodes-sd.nodesq) * 100) / sd.nodes : 0;
 	int proMove = sd.moveSet ? (sd.moveOk * 100) / sd.moveSet : 0;
 	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
 	cout << "bestmove " << sd.bstMove.ToUci();
@@ -379,7 +383,8 @@ void BestMove() {
 
 //Start search
 void SearchIterate() {
-	//position.phase = position.Phase();
+	bool inCheck = position.InCheck();
+	int phase = position.Phase();
 	sd.Restart();
 	tt.age++;
 	Picker picker;
@@ -392,16 +397,13 @@ void SearchIterate() {
 		cout << "bestmove " << picker.list[0].ToUci() << endl;
 		return;
 	}
-	picker.Fill();
+	picker.Fill(phase);
 	picker.Sort();
-	/*for (int n = 0; n < picker.count; n++)
-	{
-		PickerE pe = picker.scores[n];
-		cout << pe.move.ToUci() << " " << pe.score << " " << pe.see << endl;
-	}*/
-	Score score = Search(1, 0, -CHECKMATE_MAX, CHECKMATE_MAX, NTPV, false);
+	Score score = Search(1, 0, -CHECKMATE_MAX, CHECKMATE_MAX, NTPV,phase, false);
 	for (sd.depth = 1; sd.depth < MAX_DEPTH; sd.depth++) {
-		score = SearchWiden(picker, sd.depth, score, 38);
+		score = inCheck ?
+			SearchRoot(picker, sd.depth, -CHECKMATE_MAX, CHECKMATE_MAX,phase) :
+			SearchWiden(picker, sd.depth, score, 38, 0,phase);
 		if (chronos.flags & FMOVETIME)
 			if (sd.Ms() > chronos.movetime / 2)
 				break;
