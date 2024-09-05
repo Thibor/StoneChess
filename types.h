@@ -21,6 +21,7 @@ using namespace std;
 #define S8  signed __int8
 #define Hash unsigned __int64
 #define Score signed __int16
+#define Depth signed __int16
 
 typedef uint64_t Bitboard;
 
@@ -148,10 +149,10 @@ extern const int DEBRUIJN64[64];
 extern const Bitboard MAGIC;
 extern constexpr Square bsf(Bitboard b);
 
-constexpr Rank rank_of(Square s) { return Rank(s >> 3); }
-constexpr File file_of(Square s) { return File(s & 0b111); }
-constexpr int diagonal_of(Square s) { return 7 + rank_of(s) - file_of(s); }
-constexpr int anti_diagonal_of(Square s) { return rank_of(s) + file_of(s); }
+constexpr Rank RankOf(Square s) { return Rank(s >> 3); }
+constexpr File FileOf(Square s) { return File(s & 0b111); }
+constexpr int diagonal_of(Square s) { return 7 + RankOf(s) - FileOf(s); }
+constexpr int anti_diagonal_of(Square s) { return RankOf(s) + FileOf(s); }
 constexpr Square create_square(File f, Rank r) { return Square(r << 3 | f); }
 
 //Shifts a bitboard in a particular direction. There is no wrapping, so bits that are shifted of the edge are lost 
@@ -182,49 +183,23 @@ public:
 
 	//Defaults to a null move (a1a1)
 	inline Move() : move(0) {}
-
 	inline Move(uint16_t m) { move = m; }
+	inline Move(Square from, Square to) : move(0) {move = (from << 6) | to;}
+	inline Move(Square from, Square to, MoveFlags flags) : move(0) {move = (flags << 12) | (from << 6) | to;}
+	Move(const std::string& move);
 
-	inline Move(Square from, Square to) : move(0) {
-		move = (from << 6) | to;
-	}
-
-	inline Move(Square from, Square to, MoveFlags flags) : move(0) {
-		move = (flags << 12) | (from << 6) | to;
-	}
-
-	Move(const std::string& move) {
-		Square fr = create_square(File(move[0] - 'a'), Rank(move[1] - '1'));
-		Square to = create_square(File(move[2] - 'a'), Rank(move[3] - '1'));
-		MoveFlags mf = MoveFlags::QUIET;
-		if (move.length() > 4)
-			if (move[5] == 'q')
-				mf = MoveFlags::PC_QUEEN;
-			else if (move[5] == 'r')
-				mf = MoveFlags::PC_ROOK;
-			else if (move[5] == 'b')
-				mf = MoveFlags::PC_BISHOP;
-			else if (move[5] == 'n')
-				mf = MoveFlags::PC_KNIGHT;
-		this->move = (mf << 12) | (fr << 6) | to;
-	}
-
-	inline Square to() const { return Square(move & 0x3f); }
-	inline Square from() const { return Square((move >> 6) & 0x3f); }
-	inline int to_from() const { return move & 0xffff; }
-	inline MoveFlags flags() const { return MoveFlags((move >> 12) & 0xf); }
+	inline Square To() const { return Square(move & 0x3f); }
+	inline Square From() const { return Square((move >> 6) & 0x3f); }
+	inline int ToFrom() const { return move & 0xffff; }
+	inline MoveFlags Flags() const { return MoveFlags((move >> 12) & 0xf); }
 	inline bool IsCapture() const { return (move >> 12) & CAPTURE; }
-
-	string ToUci() {
-		string uci = SQSTR[from()] + SQSTR[to()];
-		if (flags() & PROMOTION)
-			return uci + MOVE_TYPESTR_UCI[flags() & 7];
-		return uci;
-	}
+	inline bool IsProm() const { return (move >> 12) & PROMOTION; }
+	inline bool IsQuiet() const { return !((move >> 12) & 0b1100); }
+	string ToUci();
 
 	void operator=(Move m) { move = m.move; }
-	bool operator==(Move a) const { return to_from() == a.to_from(); }
-	bool operator!=(Move a) const { return to_from() != a.to_from(); }
+	bool operator==(Move a) const { return ToFrom() == a.ToFrom(); }
+	bool operator!=(Move a) const { return ToFrom() != a.ToFrom(); }
 };
 
 //Adds, to the move pointer all moves of the form (from, s), where s is a square in the bitboard to
@@ -236,10 +211,10 @@ inline Move* make(Square from, Bitboard to, Move* list) {
 
 //Adds, to the move pointer all quiet promotion moves of the form (from, s), where s is a square in the bitboard to
 template<>
-inline Move* make<PROMOTIONS>(Square from, Bitboard to, Move* list) {
+inline Move* make<PROMOTIONS>(Square from, Bitboard b, Move* list) {
 	Square p;
-	while (to) {
-		p = pop_lsb(&to);
+	while (b) {
+		p = pop_lsb(&b);
 		*list++ = Move(from, p, PR_KNIGHT);
 		*list++ = Move(from, p, PR_BISHOP);
 		*list++ = Move(from, p, PR_ROOK);
@@ -250,10 +225,10 @@ inline Move* make<PROMOTIONS>(Square from, Bitboard to, Move* list) {
 
 //Adds, to the move pointer all capture promotion moves of the form (from, s), where s is a square in the bitboard to
 template<>
-inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard to, Move* list) {
+inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard b, Move* list) {
 	Square p;
-	while (to) {
-		p = pop_lsb(&to);
+	while (b) {
+		p = pop_lsb(&b);
 		*list++ = Move(from, p, PC_KNIGHT);
 		*list++ = Move(from, p, PC_BISHOP);
 		*list++ = Move(from, p, PC_ROOK);
@@ -301,3 +276,12 @@ constexpr Bitboard ooo_blockers_mask(Color c) {
 }
 
 constexpr Bitboard ignore_ooo_danger(Color c) { return c == WHITE ? 0x2 : 0x200000000000000; }
+
+struct [[nodiscard]] Stack {
+	Move move;
+	Move killer1;
+	Move killer2;
+	Score score;
+};
+
+extern Stack stack[128];

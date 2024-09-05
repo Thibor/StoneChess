@@ -41,7 +41,7 @@ int main() {
 	EvalInit();
 	SearchInit();
 	initialise_all_databases();
-	zobrist::initialise_zobrist_keys();
+	zobrist::InitialiseZobristKeys();
 	position.SetFen();
 	UciLoop();
 }

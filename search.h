@@ -12,19 +12,19 @@
 #include "uci.h"
 
 struct sSearchDriver {
-	int moveSet=0;
-	int moveOk=0;
-	int32_t depth=0;
-	int32_t bstScore=0;
-	uint64_t nodes=0;
-	uint64_t nodesq=0;
+	int moveSetTry=0;
+	int moveSetOk=0;
+	Depth depth=0;
+	Score bstScore=0;
+	U64 nodes=0;
+	U64 nodesq=0;
 	Move bstMove=0;
 	Move ponderMove=0;
 	std::chrono::steady_clock::time_point timeStart{};
 
 	void Restart() {
-		moveSet = 0;
-		moveOk = 0;
+		moveSetTry = 0;
+		moveSetOk = 0;
 		depth = 0;
 		bstScore =0;
 		nodes=0;

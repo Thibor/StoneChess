@@ -23,21 +23,19 @@ public:
 	template<typename T> T rand() { return T(rand64()); }
 
 	//Generate psuedorandom number with only a few set bits
-	template<typename T>
-	T sparse_rand() {
-		return T(rand64() & rand64() & rand64());
-	}
+	template<typename T> T sparse_rand() { return T(rand64() & rand64() & rand64()); }
 };
 
 
 namespace zobrist {
 	extern Hash hashColor;
 	extern Hash zobrist_table[NPIECES][NSQUARES];
-	extern void initialise_zobrist_keys();
+	extern void InitialiseZobristKeys();
 }
 
 //Stores position information which cannot be recovered on undo-ing a move
 struct UndoInfo {
+
 	//The bitboard of squares on which pieces have either moved from, or have been moved to. Used for castling legality checks
 	Bitboard entry;
 
@@ -76,41 +74,25 @@ public:
 	//The history of non-recoverable information
 	UndoInfo history[512];
 
-	Move killers[128][2];
-
 	//The bitboard of enemy pieces that are currently attacking the king, updated whenever generate_moves() is called
 	Bitboard checkers;
 
 	//The bitboard of pieces that are currently pinned to the king by enemy sliders, updated whenever generate_moves() is called
 	Bitboard pinned;
 
-
-	constexpr Position() : piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{},
-		hash(0), pinned(0), checkers(0) {
-
-		//Sets all squares on the board as empty
-		for (int i = 0; i < 64; i++) board[i] = NO_PIECE;
-		history[0] = UndoInfo();
-	}
+	//constexpr Position(piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0));
+	constexpr Position();
 
 	//Places a piece on a particular square and updates the hash. Placing a piece on a square that is already occupied is an error
-	inline void put_piece(Piece pc, Square s) {
-		board[s] = pc;
-		piece_bb[pc] |= SQUARE_BB[s];
-		hash ^= zobrist::zobrist_table[pc][s];
-	}
+	inline void PutPiece(Piece pc, Square s);
 
 	//Removes a piece from a particular square and updates the hash. 
-	inline void remove_piece(Square s) {
-		hash ^= zobrist::zobrist_table[board[s]][s];
-		piece_bb[board[s]] &= ~SQUARE_BB[s];
-		board[s] = NO_PIECE;
-	}
-	void move_piece(Square from, Square to);
-	void move_piece_quiet(Square from, Square to);
+	inline void RemovePiece(Square s);
+	void MovePiece(Square from, Square to);
+	void MovePieceQuiet(Square from, Square to);
 	void Clear();
-	void SetFen(const std::string& fen = DEFAULT_FEN);
-	std::string GetFen() const;
+	void SetFen(const string& fen = DEFAULT_FEN);
+	string GetFen() const;
 	inline Bitboard bitboard_of(Piece pc) const { return piece_bb[pc]; }
 	inline Bitboard bitboard_of(Color c, PieceType pt) const { return piece_bb[make_piece(c, pt)]; }
 	inline Bitboard AllPieces()const;
@@ -130,7 +112,6 @@ public:
 	bool InCheck(Color color);
 	bool InCheck();
 	bool IsLegal(Move m);
-	int Phase();
 	bool IsRepetition();
 	inline int HistoryIndex() const { return historyIndex; }
 	inline Hash GetHash() const { return hash; }

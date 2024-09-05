@@ -37,9 +37,9 @@ void EvalInit() {
 	int eloRange = options.eloMax - options.eloMin;
 	int range = 800 - (elo * 800) / eloRange;
 	for (int r = 0; r < 5; r++) {
-		int mg = (-500 * (eloRange - elo) + Mg(materialOrg[r]) * elo) / eloRange;
+		int mg = (-500 * (eloRange - elo) + Mg(materialOrg[r]) * elo)/eloRange;
 		int eg = Eg(materialOrg[r]);
-		material[r] = S(mg, eg);
+		material[r] = S(mg,eg);
 	}
 }
 
@@ -53,7 +53,7 @@ inline Piece GetMovingPiece(Move m) {
 
 Bitboard GetLeastValuablePiece(Bitboard attadef, Color bySide, Piece& piece) {
 	int maskColor = bySide << 3;
-	for (int n = PAWN; n <= KING; n++) {
+	for (int n = PAWN;n <= KING;n++) {
 		piece = Piece(maskColor | n);
 		const Bitboard subset = attadef & position.bitboard_of(piece);
 		if (subset)
@@ -62,8 +62,7 @@ Bitboard GetLeastValuablePiece(Bitboard attadef, Color bySide, Piece& piece) {
 	return 0;    // empty set
 }
 
-static constexpr Score pieceValues[]{ 100, 325, 325, 500, 1000, 10000 };
-const constexpr  Score pieceValuesMax[] = { 128, 421, 404, 596, 1271, 0, 0 };
+static constexpr Score see_piece_vals[]{ 100, 325, 325, 500, 1000, 10000 };
 
 S32 See(Move m) {
 	if (!m.IsCapture())
@@ -90,13 +89,13 @@ S32 See(Move m) {
 		| (PSEUDO_LEGAL_ATTACKS[KING][sqTo] & (position.bitboard_of(WHITE_KING) | position.bitboard_of(BLACK_KING)));
 	Bitboard attadef = (fixed | ((get_bishop_attacks(sqTo, occ) & bishopsQueens) | (get_rook_attacks(sqTo, occ) & rooksQueens)));
 	if (m.IsCapture())
-		gain[d] = pieceValues[type_of(capturedPiece)];
+		gain[d] = see_piece_vals[type_of(capturedPiece)];
 	else
 		gain[d] = 0;
 	do {
 		d++;
 		attacker = Color(1 - attacker);
-		gain[d] = pieceValues[type_of(capturingPiece)] - gain[d - 1];
+		gain[d] = see_piece_vals[type_of(capturingPiece)] - gain[d - 1];
 		if (-gain[d - 1] < 0 && gain[d] < 0)
 			break;    // pruning does not influence the result
 		attadef ^= fromSet;    // reset bit in set to traverse
@@ -120,6 +119,7 @@ U64 shelterQB = 0x00E0000000000000ull;
 U64 shelterSW = 0xC3D7;
 U64 shelterSB = 0xD7C3000000000000ull;
 
+const int max_material[] = { 128, 421, 404, 596, 1271, 0, 0 };
 const int psts[][4] = {
 	{S(-18, -1), S(-0, -6), S(9, 6), S(9, 1)},
 	{S(-22, -0), S(-5, -2), S(8, 1), S(20, 0)},
@@ -158,12 +158,12 @@ void ShowScore(string name, int sw, int sb) {
 }
 
 S32 Eval(Square sq, int type) {
-	const Rank rank = RankOf(sq);
-	double file = FileOf(sq);
+	const Rank rank = rank_of(sq);
+	double file = file_of(sq);
 	const Rank rankR = RelativeRank(position.ColorUs(), rank);
 	S32 result = materialMax[type];
 	result += rankR << 2;
-	result += 3 - floor(abs(file - 3.5));
+	result += 3- floor(abs(file - 3.5));
 	return result;
 }
 
@@ -204,9 +204,9 @@ SEval Eval(Position& pos, Color color, Square kpUs, Square kpEn) {
 		while (copy) {
 			phase += phases[p];
 			const Square sq = pop_lsb(&copy);
-			const Rank rank = RankOf(sq);
+			const Rank rank = rank_of(sq);
 			const Rank rankR = RelativeRank(color, rank);
-			const File file = FileOf(sq);
+			const File file = file_of(sq);
 			const int centrality = (7 - abs(7 - rankR - file) - abs(rankR - file)) / 2;
 			// Material
 			result.scorePiece[p] += material[p];
@@ -286,6 +286,7 @@ int ScoreSe(SEval se) {
 }
 
 S32 ShowEval() {
+	position.SetFen("1b1rr1k1/3q1pp1/8/NP1p1b1p/1B1Pp1n1/PQR1P1P1/4BP1P/5RK1 w - -0 1");
 	phase = 0;
 	Square kpW = bsf(position.piece_bb[WHITE_KING]);
 	Square kpB = bsf(position.piece_bb[BLACK_KING]);

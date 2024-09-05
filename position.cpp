@@ -14,7 +14,7 @@ U64 zobrist::zobrist_table[NPIECES][NSQUARES];
 const int phases[] = { 0, 1, 1, 2, 4, 0 };
 
 //Initializes the zobrist table with random 64-bit numbers
-void zobrist::initialise_zobrist_keys() {
+void zobrist::InitialiseZobristKeys() {
 	PRNG rng(70026072);
 	hashColor = rng.rand<U64>();
 	for (int i = 0; i < NPIECES; i++)
@@ -23,7 +23,7 @@ void zobrist::initialise_zobrist_keys() {
 }
 
 //Pretty-prints the position (including FEN and hash key)
-std::ostream& operator<< (std::ostream& os, const Position& p) {
+std::ostream& operator << (std::ostream& os, const Position& p) {
 	const char* s = "   +---+---+---+---+---+---+---+---+\n";
 	const char* t = "     A   B   C   D   E   F   G   H\n";
 	os << t;
@@ -41,6 +41,13 @@ std::ostream& operator<< (std::ostream& os, const Position& p) {
 	os << "Hash: 0x" << std::hex << p.hash << std::dec << endl;
 	os << "Side: " << (p.side_to_play == WHITE ? "w" : "b") << endl;
 	return os;
+}
+
+constexpr Position::Position() : piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0) {
+	//Sets all squares on the board as empty
+	for (int i = 0; i < 64; i++)
+		board[i] = NO_PIECE;
+	history[0] = UndoInfo();
 }
 
 void Position::Clear() {
@@ -83,18 +90,23 @@ bool Position::InCheck() {
 	return AttackersFrom(~side_to_play, bsf(bitboard_of(side_to_play, KING)), AllPieces());
 }
 
-int Position::Phase() {
-	return pop_count(piece_bb[WHITE_KNIGHT] | piece_bb[BLACK_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[BLACK_BISHOP]) +
-		pop_count(piece_bb[WHITE_ROOK] | piece_bb[BLACK_ROOK]) * 2 +
-		sparse_pop_count(piece_bb[WHITE_QUEEN] | piece_bb[BLACK_QUEEN]) * 4;
+inline void Position::PutPiece(Piece pc, Square s) {
+	board[s] = pc;
+	piece_bb[pc] |= SQUARE_BB[s];
+	hash ^= zobrist::zobrist_table[pc][s];
+}
+
+inline void Position::RemovePiece(Square s) {
+	hash ^= zobrist::zobrist_table[board[s]][s];
+	piece_bb[board[s]] &= ~SQUARE_BB[s];
+	board[s] = NO_PIECE;
 }
 
 bool Position::IsRepetition() {
 	for (int n = historyIndex - 2; n >= historyIndex - move50; n -= 2)
-		if (n < 0)
-			return false;
-		else if (history[n].hash == hash)
-			return true;
+		if (n >= 0)
+			if (history[n].hash == hash)
+				return true;
 	return false;
 }
 
@@ -119,91 +131,91 @@ void Position::MakeMove(const Move m) {
 	side_to_play = ~side_to_play;
 	++historyIndex;
 	history[historyIndex] = UndoInfo(history[historyIndex - 1]);
-	Square fr = m.from();
-	Square to = m.to();
-	MoveFlags type = m.flags();
+	Square fr = m.From();
+	Square to = m.To();
+	MoveFlags type = m.Flags();
 	history[historyIndex].entry |= SQUARE_BB[to] | SQUARE_BB[fr];
 	move50 = (type == QUIET) && (type_of(board[fr]) != PAWN) ? ++move50 : 0;
 	switch (type) {
 	case QUIET:
 		//The to square is guaranteed to be empty here
-		move_piece_quiet(m.from(), m.to());
+		MovePieceQuiet(m.From(), m.To());
 		break;
 	case DOUBLE_PUSH:
 		//The to square is guaranteed to be empty here
-		move_piece_quiet(m.from(), m.to());
+		MovePieceQuiet(m.From(), m.To());
 
 		//This is the square behind the pawn that was double-pushed
-		history[historyIndex].epsq = m.from() + RelativeDir(c, NORTH);
+		history[historyIndex].epsq = m.From() + RelativeDir(c, NORTH);
 		break;
 	case OO:
 		if (c == WHITE) {
-			move_piece_quiet(e1, g1);
-			move_piece_quiet(h1, f1);
+			MovePieceQuiet(e1, g1);
+			MovePieceQuiet(h1, f1);
 		}
 		else {
-			move_piece_quiet(e8, g8);
-			move_piece_quiet(h8, f8);
+			MovePieceQuiet(e8, g8);
+			MovePieceQuiet(h8, f8);
 		}
 		break;
 	case OOO:
 		if (c == WHITE) {
-			move_piece_quiet(e1, c1);
-			move_piece_quiet(a1, d1);
+			MovePieceQuiet(e1, c1);
+			MovePieceQuiet(a1, d1);
 		}
 		else {
-			move_piece_quiet(e8, c8);
-			move_piece_quiet(a8, d8);
+			MovePieceQuiet(e8, c8);
+			MovePieceQuiet(a8, d8);
 		}
 		break;
 	case EN_PASSANT:
-		move_piece_quiet(m.from(), m.to());
-		remove_piece(m.to() + RelativeDir(c, SOUTH));
+		MovePieceQuiet(m.From(), m.To());
+		RemovePiece(m.To() + RelativeDir(c, SOUTH));
 		break;
 	case PR_KNIGHT:
-		remove_piece(m.from());
-		put_piece(make_piece(c, KNIGHT), m.to());
+		RemovePiece(m.From());
+		PutPiece(make_piece(c, KNIGHT), m.To());
 		break;
 	case PR_BISHOP:
-		remove_piece(m.from());
-		put_piece(make_piece(c, BISHOP), m.to());
+		RemovePiece(m.From());
+		PutPiece(make_piece(c, BISHOP), m.To());
 		break;
 	case PR_ROOK:
 		move50 = 0;
-		remove_piece(m.from());
-		put_piece(make_piece(c, ROOK), m.to());
+		RemovePiece(m.From());
+		PutPiece(make_piece(c, ROOK), m.To());
 		break;
 	case PR_QUEEN:
-		remove_piece(m.from());
-		put_piece(make_piece(c, QUEEN), m.to());
+		RemovePiece(m.From());
+		PutPiece(make_piece(c, QUEEN), m.To());
 		break;
 	case PC_KNIGHT:
-		remove_piece(m.from());
-		history[historyIndex].captured = board[m.to()];
-		remove_piece(m.to());
-		put_piece(make_piece(c, KNIGHT), m.to());
+		RemovePiece(m.From());
+		history[historyIndex].captured = board[m.To()];
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, KNIGHT), m.To());
 		break;
 	case PC_BISHOP:
-		remove_piece(m.from());
-		history[historyIndex].captured = board[m.to()];
-		remove_piece(m.to());
-		put_piece(make_piece(c, BISHOP), m.to());
+		RemovePiece(m.From());
+		history[historyIndex].captured = board[m.To()];
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, BISHOP), m.To());
 		break;
 	case PC_ROOK:
-		remove_piece(m.from());
-		history[historyIndex].captured = board[m.to()];
-		remove_piece(m.to());
-		put_piece(make_piece(c, ROOK), m.to());
+		RemovePiece(m.From());
+		history[historyIndex].captured = board[m.To()];
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, ROOK), m.To());
 		break;
 	case PC_QUEEN:
-		remove_piece(m.from());
-		history[historyIndex].captured = board[m.to()];
-		remove_piece(m.to());
-		put_piece(make_piece(c, QUEEN), m.to());
+		RemovePiece(m.From());
+		history[historyIndex].captured = board[m.To()];
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, QUEEN), m.To());
 		break;
 	case CAPTURE:
-		history[historyIndex].captured = board[m.to()];
-		move_piece(m.from(), m.to());
+		history[historyIndex].captured = board[m.To()];
+		MovePiece(m.From(), m.To());
 		break;
 	}
 	history[historyIndex].hash = hash;
@@ -215,56 +227,56 @@ void Position::UnmakeMove(const Move m) {
 	hash ^= zobrist::hashColor;
 	side_to_play = ~side_to_play;
 	Color c = side_to_play;
-	MoveFlags type = m.flags();
+	MoveFlags type = m.Flags();
 	switch (type) {
 	case QUIET:
-		move_piece_quiet(m.to(), m.from());
+		MovePieceQuiet(m.To(), m.From());
 		break;
 	case DOUBLE_PUSH:
-		move_piece_quiet(m.to(), m.from());
+		MovePieceQuiet(m.To(), m.From());
 		break;
 	case OO:
 		if (c == WHITE) {
-			move_piece_quiet(g1, e1);
-			move_piece_quiet(f1, h1);
+			MovePieceQuiet(g1, e1);
+			MovePieceQuiet(f1, h1);
 		}
 		else {
-			move_piece_quiet(g8, e8);
-			move_piece_quiet(f8, h8);
+			MovePieceQuiet(g8, e8);
+			MovePieceQuiet(f8, h8);
 		}
 		break;
 	case OOO:
 		if (c == WHITE) {
-			move_piece_quiet(c1, e1);
-			move_piece_quiet(d1, a1);
+			MovePieceQuiet(c1, e1);
+			MovePieceQuiet(d1, a1);
 		}
 		else {
-			move_piece_quiet(c8, e8);
-			move_piece_quiet(d8, a8);
+			MovePieceQuiet(c8, e8);
+			MovePieceQuiet(d8, a8);
 		}
 		break;
 	case EN_PASSANT:
-		move_piece_quiet(m.to(), m.from());
-		put_piece(make_piece(~c, PAWN), m.to() + RelativeDir(c, SOUTH));
+		MovePieceQuiet(m.To(), m.From());
+		PutPiece(make_piece(~c, PAWN), m.To() + RelativeDir(c, SOUTH));
 		break;
 	case PR_KNIGHT:
 	case PR_BISHOP:
 	case PR_ROOK:
 	case PR_QUEEN:
-		remove_piece(m.to());
-		put_piece(make_piece(c, PAWN), m.from());
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, PAWN), m.From());
 		break;
 	case PC_KNIGHT:
 	case PC_BISHOP:
 	case PC_ROOK:
 	case PC_QUEEN:
-		remove_piece(m.to());
-		put_piece(make_piece(c, PAWN), m.from());
-		put_piece(history[historyIndex].captured, m.to());
+		RemovePiece(m.To());
+		PutPiece(make_piece(c, PAWN), m.From());
+		PutPiece(history[historyIndex].captured, m.To());
 		break;
 	case CAPTURE:
-		move_piece_quiet(m.to(), m.from());
-		put_piece(history[historyIndex].captured, m.to());
+		MovePieceQuiet(m.To(), m.From());
+		PutPiece(history[historyIndex].captured, m.To());
 		break;
 	}
 	--historyIndex;
@@ -280,7 +292,7 @@ void Position::SetFen(const std::string& fen) {
 		else if (ch == '/')
 			square += 2 * SOUTH;
 		else
-			put_piece(Piece(PIECE_STR.find(ch)), Square(square++));
+			PutPiece(Piece(PIECE_STR.find(ch)), Square(square++));
 	}
 
 	std::istringstream ss(fen.substr(fen.find(' ')));
@@ -341,7 +353,7 @@ std::string Position::GetFen() const {
 }
 
 //Moves a piece to a (possibly empty) square on the board and updates the hash
-void Position::move_piece(Square from, Square to) {
+void Position::MovePiece(Square from, Square to) {
 	hash ^= zobrist::zobrist_table[board[from]][from] ^ zobrist::zobrist_table[board[from]][to]
 		^ zobrist::zobrist_table[board[to]][to];
 	Bitboard mask = SQUARE_BB[from] | SQUARE_BB[to];
@@ -352,7 +364,7 @@ void Position::move_piece(Square from, Square to) {
 }
 
 //Moves a piece to an empty square. Note that it is an error if the <to> square contains a piece
-void Position::move_piece_quiet(Square from, Square to) {
+void Position::MovePieceQuiet(Square from, Square to) {
 	hash ^= zobrist::zobrist_table[board[from]][from] ^ zobrist::zobrist_table[board[from]][to];
 	piece_bb[board[from]] ^= (SQUARE_BB[from] | SQUARE_BB[to]);
 	board[to] = board[from];
@@ -466,7 +478,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 			b1 = AttackersFrom(Us, checker_square, all) & not_pinned;
 			while (b1) {
 				Square sf = pop_lsb(&b1);
-				if (type_of(board[sf]) == PAWN && RelativeRank(Us, rank_of(sf)) == RANK7) {
+				if (type_of(board[sf]) == PAWN && RelativeRank(Us, RankOf(sf)) == RANK7) {
 					*list++ = Move(sf, checker_square, PC_KNIGHT);
 					*list++ = Move(sf, checker_square, PC_BISHOP);
 					*list++ = Move(sf, checker_square, PC_ROOK);
@@ -548,7 +560,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 
 				if ((sliding_attacks(our_king, all ^ SQUARE_BB[s]
 					^ Shift(RelativeDir(Us, SOUTH), SQUARE_BB[history[historyIndex].epsq]),
-					MASK_RANK[rank_of(our_king)]) &
+					MASK_RANK[RankOf(our_king)]) &
 					their_orth_sliders) == 0)
 					*list++ = Move(s, history[historyIndex].epsq, EN_PASSANT);
 			}
@@ -592,7 +604,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 		while (b1) {
 			s = pop_lsb(&b1);
 
-			if (rank_of(s) == RelativeRank(Us, RANK7)) {
+			if (RankOf(s) == RelativeRank(Us, RANK7)) {
 				//Quiet promotions are impossible since the square in front of the pawn will
 				//either be occupied by the king or the pinner, or doing so would leave our king
 				//in check

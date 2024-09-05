@@ -1,29 +1,32 @@
 #include "search.h"
 
-#include "types.h"
 #include "input.h"
 
 #define MAX_DEPTH 100
 
-const Score CHECKMATE_MAX = 0x7ff0;
-const Score CHECKMATE_NEAR = 0x7000;
-const Score CHECKMATE_INFINITY = 0x7fff;
+const int32_t CHECKMATE_MAX = 0x7ff0;
+const int32_t CHECKMATE_NEAR = 0x7000;
+const int32_t CHECKMATE_INFINITY = 0x7fff;
 
-int RAZOR_MARGIN = 190;
+int  RAZOR_MARGIN = 190;
 int LMR_DIV = 267;
-int FUTILITY_MARGIN = 68;
-U32 lmrReductions[256][256];
+int  FUTILITY_MARGIN = 68;
+int lmrReductions[256][256];
 
 using namespace std;
 using namespace chrono;
 
 sSearchDriver sd;
 
-void SearchInit() {
+void LmrInit() {
 	int d, m;
 	for (d = 0; d < 256; d++)
 		for (m = 0; m < 256; m++)
-			lmrReductions[d][m] = 1.25 + log(d) * log(m) * options.lmr / LMR_DIV;
+			lmrReductions[d][m] = 1.25 + log(d) * log(m) * 100 / LMR_DIV;
+}
+
+void SearchInit() {
+	LmrInit();
 }
 
 //Check for time
@@ -89,7 +92,7 @@ void ShowBestMove() {
 		return;
 	ShowInfoPv();
 	U64 proNode = sd.nodes ? ((sd.nodes - sd.nodesq) * 100) / sd.nodes : 0;
-	int proMove = sd.moveSetTry ? (sd.moveSetOk * 100) / sd.moveSetTry : 0;
+	int proMove = sd.moveSet ? (sd.moveOk * 100) / sd.moveSet : 0;
 	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
 	cout << "bestmove " << sd.bstMove.ToUci();
 	if (options.ponder && sd.ponderMove.move)
@@ -97,15 +100,14 @@ void ShowBestMove() {
 	cout << endl;
 }
 
-
 //Quiesce search
 Score QSearch(Score alpha, Score beta, NodeTypes nt) {
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
 		return alpha;
-	int staticEval = Eval();
-	int score = staticEval;
+	Score staticEval = Eval();
+	Score score = staticEval;
 	if (score >= beta)
 		return beta;
 	if (score > alpha)
@@ -114,37 +116,40 @@ Score QSearch(Score alpha, Score beta, NodeTypes nt) {
 	Picker picker;
 	position.MoveList(color, picker.list, picker.count, false);
 	if (!picker.count)
-		return staticEval;
+		return alpha;
 	picker.Fill();
 	if (nt == NTNONPV) {
-		CRec* rec = tt.GetRec(position.GetHash());
-		if (rec != nullptr)
-			if (picker.SetMove(rec->move)) {
-				if (rec->type == NODE_PV)
-					return rec->score;
-				else if (rec->type == NODE_CUT) {
-					if (rec->score >= beta)
-						return beta;
-				}
-				else if (rec->type == NODE_ALL)
-					if (rec->score <= alpha)
-						return alpha;
-
-				if ((rec->type == NODE_PV) ||
-					(rec->type == NODE_CUT && staticEval < rec->score) ||
-					(rec->type == NODE_ALL && staticEval > rec->score))
-					staticEval = rec->score;
+	CRec* rec = tt.GetRec(position.GetHash());
+	if (rec != nullptr)
+		if (picker.SetMove(rec->move)) {
+			if (rec->type == NODE_PV)
+				return rec->score;
+			else if (rec->type == NODE_CUT) {
+				if (rec->score >= beta)
+					return beta;
+				//return rec->score;
 			}
+			else if (rec->type == NODE_ALL)
+				if (rec->score <= alpha)
+					return alpha;
+			//return rec->score;
+
+			if ((rec->type == NODE_PV) ||
+				(rec->type == NODE_CUT && staticEval < rec->score) ||
+				(rec->type == NODE_ALL && staticEval > rec->score))
+				staticEval = rec->score;
+		}
 	}
-	Score bstScore = -CHECKMATE_MAX;
-	U16 bstMove = 0;
+	Score bestScore = -CHECKMATE_MAX;
+	U16 bestMove = 0;
 	Score oldAlpha = alpha;
 	bool inCheck = position.InCheck();
 	for (int n = 0; n < picker.count; n++)
 	{
 		PickerE pe = n < picker.index ? picker.scores[n] : picker.Pick(n);
 		Move m = pe.move;
-		if (n && !inCheck && !m.IsProm()) {
+		if (n && !inCheck && pe.see < 0)break;
+		if (!inCheck && bestMove) {
 			if (pe.see < 0)
 				continue;
 			if (pe.see + staticEval > beta + 200)
@@ -155,24 +160,24 @@ Score QSearch(Score alpha, Score beta, NodeTypes nt) {
 		position.UnmakeMove(m);
 		if (chronos.gameOver)
 			return alpha;
-		if (score > bstScore)
+		if (score > bestScore)
 		{
-			bstScore = score;
-			bstMove = m.move;
+			bestScore = score;
+			bestMove = m.move;
 		}
 		if (score > alpha)
 			alpha = score;
 		if (score >= beta)
 			break;
 	}
-	if (!chronos.gameOver && bstMove) {
-		RecType rt = bstScore <= oldAlpha ? NODE_ALL : bstScore >= beta ? NODE_CUT : NODE_PV;
-		tt.SetRec(position.GetHash(), bstScore, bstMove, rt, 0);
+	if (!chronos.gameOver) {
+		RecType rt = bestScore <= oldAlpha ? NODE_ALL : bestScore >= beta ? NODE_CUT : NODE_PV;
+		tt.SetRec(position.GetHash(), bestScore, bestMove, rt, 0);
 	}
 	return alpha;
 }
 
-//main search loop
+//Main search loop
 Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool doNull = true) {
 	if ((position.move50 >= 100) || (position.IsRepetition()))
 		return ply & 1 ? -options.contempt : options.contempt;
@@ -191,13 +196,13 @@ Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool
 	sd.nodesq++;
 
 	//mate distance pruning
-	Score  mate_value = CHECKMATE_MAX - ply;
+	int  mate_value = CHECKMATE_MAX - ply;
 	if (alpha < -mate_value) alpha = -mate_value;
 	if (beta > mate_value) beta = mate_value;
 	if (alpha >= beta) return alpha;
 
 	//trasposition table pruning
-	Score staticEval = stack[ply].score = Eval();
+	Score staticEval = Eval();
 	Picker picker;
 	position.MoveList(color, picker.list, picker.count);
 	if (!picker.count)return inCheck ? -CHECKMATE_MAX + ply : 0;
@@ -206,10 +211,13 @@ Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool
 		picker.SetMove(stack[ply].killer1);
 	if (stack[ply].killer2.move)
 		picker.SetMove(stack[ply].killer2);
+	bool        pv = (beta - alpha) != 1;
+	int hashMove = 0;
 	CRec* rec = tt.GetRec(position.GetHash());
 	if (rec != nullptr)
 		if (picker.SetMove(rec->move)) {
-			if (rec->depth >= depth)
+			hashMove = rec->move;
+			if (rec->depth >= depth && !pv)
 				if (rec->type == NODE_PV)
 					return rec->score;
 				else if (rec->type == NODE_CUT) {
@@ -219,33 +227,58 @@ Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool
 							stack[ply].killer1.move = rec->move;
 						}
 						return beta;
+						//return rec->score;
 					}
 				}
 				else if (rec->type == NODE_ALL)
 					if (rec->score <= alpha)
 						return alpha;
+			//return rec->score;
+
 			if ((rec->type == NODE_PV) ||
 				(rec->type == NODE_CUT && staticEval < rec->score) ||
 				(rec->type == NODE_ALL && staticEval > rec->score))
 				staticEval = rec->score;
 		}
 
-	//razoring
-	if (depth <= 3 && staticEval + RAZOR_MARGIN * depth < beta) {
-		score = QSearch(alpha, beta, nt);
-		if (score < beta)
-			return score;
+	if (!inCheck && nt == NTNONPV) {
+
+		//razoring
+		if (depth <= 3 && staticEval + RAZOR_MARGIN * depth < beta) {
+			score = QSearch(alpha, beta, nt);
+			if (score < beta)
+				return score;
+		}
+		//static null move pruning
+		if (depth <= 7 && staticEval >= beta + depth * FUTILITY_MARGIN && staticEval < CHECKMATE_NEAR)
+			return staticEval;
+		//null move pruning
+		if (doNull && staticEval >= beta + (5 > depth ? 30 : 0) && (depth >= 5) && position.NotOnlyPawns()) {
+			position.MakeNull();
+			Score score = -Search(depth - (depth / 4 + 3) - (staticEval - beta < 300 ? (staticEval - beta) / FUTILITY_MARGIN : 3), ply + 1, -beta, 1 - beta, NTNONPV, false);
+			position.UnmakeNull();
+			if (score >= beta) {
+				// dont return mate/tb scores
+				if (score >= CHECKMATE_NEAR)
+					score = beta;
+				return score;
+			}
+		}
 	}
 
+	/*
 	//static null move pruning
-	if (depth <= 7 && staticEval >= beta + depth * FUTILITY_MARGIN && staticEval < CHECKMATE_NEAR)
-		return staticEval;
+	if (depth < 3 && nt == NTNONPV && !inCheck) {
+		int evalMargin = 120 * depth;
+		if (staticEval - evalMargin >= beta)
+			return staticEval - evalMargin;
+	}
 
 	//null move pruning
-	if (staticEval >= beta + (5 > depth ? 30 : 0) && (depth >= 5) && position.NotOnlyPawns() && staticEval >= stack[ply].score) {
+	if (depth > 2 && doNull && nt == NTNONPV && staticEval > beta && !inCheck && position.NotOnlyPawns()) {
+		int r = depth > 6 ? 3 : 2;
 		position.MakeNull();
-		//Score score = -Search(depth - (depth / 4 +3), ply + 1, -beta, 1 - beta, NTNONPV, phase, false);
-		Score score = -Search(depth - (depth / 4 + 3) - (staticEval - beta < 300 ? (staticEval - beta) / FUTILITY_MARGIN : 3), ply + 1, -beta, 1 - beta, NTNONPV, false);
+		Score score = -Search(depth -1-r, ply + 1, -beta, 1 - beta, NTNONPV, false);
 		position.UnmakeNull();
 		if (score >= beta) {
 			// dont return mate/tb scores
@@ -255,34 +288,45 @@ Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool
 		}
 	}
 
-	//reverse futility pruning
-	if (depth < 5) {
-		const int margins[] = { 0, 50, 100, 200, 300 };
-		if (staticEval - margins[depth] >= beta) {
-			return beta;
+	//razoring
+	if (nt == NTNONPV && !inCheck && !hashMove && doNull && depth <= 3) {
+		int threshold = alpha - 300 - (depth - 1) * 60;
+		if (staticEval < threshold) {
+			int val = Quiesce(alpha, beta, NTNONPV);
+			if (val < threshold) return alpha;
 		}
-	}
+	}*/
+
+	int fmargin[4] = { 0, 200, 300, 500 };
+
+	bool prune = depth <= 3 && !inCheck && abs(alpha) < CHECKMATE_NEAR && staticEval + fmargin[depth] <= alpha;
 
 	if (depth >= 4 && !rec)depth--;
 
-	int fmargin[4] = { 0, 200, 300, 500 };
-	bool prune = depth <= 3 && !inCheck && abs(alpha) < CHECKMATE_NEAR && staticEval + fmargin[depth] <= alpha;
-
-	Score bstScore = -CHECKMATE_MAX;
-	U16 bstMove = 0;
+	Score bestScore = -CHECKMATE_MAX;
+	Score bestMove = 0;
 	Score oldAlpha = alpha;
 	for (int n = 0; n < picker.count; n++)
 	{
 		PickerE pe = n < picker.index ? picker.scores[n] : picker.Pick(n);
 		Move m = pe.move;
-		Depth reduction = n < 2 - (rec != nullptr) + (nt == NTPV) || (depth <= 2) || ((m.IsCapture() && (pe.see > 0))) || !m.IsQuiet() ? 0 : lmrReductions[depth][n];
-		if (prune && reduction)
-			continue;
+		int lmr = lmrReductions[depth][n];
+
+		if (bestMove && !inCheck && nt == NTNONPV && pe.see < 0 && prune)continue;
+
 		position.MakeMove(m);
-		score = alpha + 1;
-		if (!n)
+		if (bestMove&&prune &&!inCheck && m.IsQuiet() && !position.InCheck()) {
+			position.UnmakeMove(m);
+			continue;
+		}
+		if (!n || inCheck)
 			score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV);
 		else {
+			int reduction = lmr;
+			if (nt == NTNONPV)
+				reduction++;
+			if (pe.see < 0)
+				reduction++;
 			score = -Search(depth - 1 - reduction, ply + 1, -alpha - 1, -alpha, NTNONPV);
 			if (reduction && score > alpha)
 				score = -Search(depth - 1, ply + 1, -alpha - 1, -alpha, NTNONPV);
@@ -292,100 +336,49 @@ Score Search(Depth depth, Depth ply, Score alpha, Score beta, NodeTypes nt, bool
 		position.UnmakeMove(m);
 		if (chronos.gameOver)
 			return alpha;
-		if (score > bstScore) {
-			bstScore = score;
-			bstMove = m.move;
+		if (score > bestScore) {
+			bestScore = score;
+			bestMove = m.move;
 		}
-		if (score > alpha) {
-			stack[ply].move = m.move;
+		if (score > alpha)
 			alpha = score;
-		}
 		if (score >= beta)
 		{
-			if (m.IsQuiet())
-				if (stack[ply].killer1.move != m.move && stack[ply].killer2.move != m.move) {
-					stack[ply].killer2.move = stack[ply].killer1.move;
-					stack[ply].killer1.move = m.move;
-				}
+			if (stack[ply].killer1.move != m.move && stack[ply].killer2.move != m.move) {
+				stack[ply].killer2.move = stack[ply].killer1.move;
+				stack[ply].killer1.move = m.move;
+			}
 			break;
 		}
 	}
-	if (!chronos.gameOver && bstMove) {
-		RecType rt = bstScore <= oldAlpha ? NODE_ALL : bstScore >= beta ? NODE_CUT : NODE_PV;
-		tt.SetRec(position.GetHash(), bstScore, bstMove, rt, depth);
-	}
-	return alpha;
-}
-
-//search first ply
-Score SearchRoot(Picker& picker, Depth depth, Score alpha, Score beta) {
-	Score oldAlpha = alpha;
-	Score score = -CHECKMATE_INFINITY;
-	Score bstScore = -CHECKMATE_INFINITY;
-	U16 bstMove = 0;
-	Color color = position.ColorUs();
-	for (int n = 0; n < picker.count; n++) {
-		Move m = picker.scores[n].move;
-		position.MakeMove(m);
-		bool inCheck = position.InCheck();
-		if (bstScore == -CHECKMATE_INFINITY)
-			score = -Search(depth - 1, 1, -beta, -alpha, NTPV, false);
-		else {
-			score = -Search(depth - 1, 1, -alpha - 1, -alpha, NTNONPV, false);
-			if (score > alpha)
-				score = -Search(depth - 1, 1, -beta, -alpha, NTPV, false);
-		}
-		position.UnmakeMove(m);
-		if (bstScore < score) {
-			bstScore = score;
-			bstMove = m.move;
-		}
-		if (chronos.gameOver)
-			return alpha;
-		if (score >= beta)
-			break;
-		if (score > alpha) {
-			alpha = score;
-			picker.SetBest(n);
-			sd.bstMove = m;
-			sd.bstScore = score;
-			ShowInfoPv();
-		}
-	}
-	if (!chronos.gameOver && bstMove) {
-		RecType rt = bstScore <= oldAlpha ? NODE_ALL : bstScore >= beta ? NODE_CUT : NODE_PV;
-		tt.SetRec(position.GetHash(), bstScore, bstMove, rt, depth);
+	if (!chronos.gameOver) {
+		RecType rt = bestScore <= oldAlpha ? NODE_ALL : bestScore >= beta ? NODE_CUT : NODE_PV;
+		tt.SetRec(position.GetHash(), bestScore, bestMove, rt, depth);
 	}
 	return alpha;
 }
 
 //Search first ply
-/*Score SearchRoot(Picker& picker, Depth depth, Score alpha, Score beta) {
-	Score oldAlpha = alpha;
-	Score score = -CHECKMATE_INFINITY;
-	Score bstScore = -CHECKMATE_INFINITY;
-	U16 bstMove = 0;
+Score SearchRoot(Picker& picker, Depth depth, Score alpha, Score beta) {
+	Score score;
+	Score best = -CHECKMATE_MAX;
 	Color color = position.ColorUs();
 	for (int n = 0; n < picker.count; n++) {
 		Move m = picker.scores[n].move;
 		position.MakeMove(m);
 		bool inCheck = position.InCheck();
-		if (bstScore == -CHECKMATE_INFINITY)
-			score = -Search(depth - 1, 1, -beta, -alpha, NTPV, false);
-		else {
+		score = alpha + 1;
+		if (!inCheck && (best > -CHECKMATE_MAX))
 			score = -Search(depth - 1, 1, -alpha - 1, -alpha, NTNONPV, false);
-			if (score > alpha)
-				score = -Search(depth - 1, 1, -beta, -alpha, NTPV, false);
-		}
+		if (score > alpha)
+			score = -Search(depth - 1, 1, -beta, -alpha, NTPV, false);
 		position.UnmakeMove(m);
-		if (bstScore < score) {
-			bstScore = score;
-			bstMove = m.move;
-		}
+		if (best < score)
+			best = score;
 		if (chronos.gameOver)
 			return alpha;
 		if (score >= beta)
-			break;
+			return beta;
 		if (score > alpha) {
 			alpha = score;
 			picker.SetBest(n);
@@ -394,20 +387,30 @@ Score SearchRoot(Picker& picker, Depth depth, Score alpha, Score beta) {
 			ShowInfoPv();
 		}
 	}
-	if (!chronos.gameOver) {
-		RecType rt = bstScore <= oldAlpha ? NODE_ALL : bstScore >= beta ? NODE_CUT : NODE_PV;
-		tt.SetRec(position.GetHash(), bstScore, bstMove, rt, depth);
-	}
 	return alpha;
-}*/
+}
 
-
-Score SearchWiden(Picker& picker, Depth depth, Score score) {
-	Score alpha = score - options.aspiration;
-	Score beta = score + options.aspiration;
-	score = SearchRoot(picker, depth, alpha, beta);
-	if (score <= alpha || score >= beta)
-		score = SearchRoot(picker, depth, -CHECKMATE_MAX, CHECKMATE_MAX);
+//Attempt to narrow the window
+Score SearchWiden(U16 index, Picker& picker, Depth depth, Depth sDepth, Score score, U32 window) {
+	Score alpha = score - window;
+	Score beta = score + window;
+	if (++index > 16)
+		return SearchRoot(picker, depth, -CHECKMATE_MAX, CHECKMATE_MAX);
+	sDepth = sDepth < depth - 3 ? depth - 3 : sDepth;
+	score = SearchRoot(picker, sDepth, alpha, beta);
+	if (!chronos.gameOver && (score <= alpha || score >= beta)) {
+		if (score >= beta) {
+			beta += window;
+			sDepth--;
+		}
+		else if (score <= alpha) {
+			beta = (alpha + beta) / 2;
+			alpha -= window;
+		}
+		score = (alpha + beta) / 2;
+		window += 10;
+		return SearchWiden(index, picker, depth, sDepth, score, window);
+	}
 	return score;
 }
 
@@ -422,12 +425,20 @@ void SearchIterate() {
 		cout << "info string no moves" << endl;
 		return;
 	}
-	memset(stack, 0, sizeof(stack));
+	if (picker.count == 1) {
+		cout << "bestmove " << picker.list[0].ToUci() << endl;
+		return;
+	}
+	for (int n = 2; n < 128; n++)
+		stack[n - 2] = stack[n];
 	picker.Fill();
 	picker.Sort();
+	int index = 0;
 	Score score = Search(1, 0, -CHECKMATE_MAX, CHECKMATE_MAX, NTPV, false);
 	for (sd.depth = 1; sd.depth < MAX_DEPTH; sd.depth++) {
-		score = SearchWiden(picker, sd.depth, score);
+		score = inCheck ?
+			SearchRoot(picker, sd.depth, -CHECKMATE_MAX, CHECKMATE_MAX) :
+			SearchWiden(index, picker, sd.depth, sd.depth, score, options.aspiration);
 		if (chronos.flags & FMOVETIME)
 			if (sd.Ms() > chronos.movetime / 2)
 				break;
@@ -437,8 +448,6 @@ void SearchIterate() {
 		if (chronos.flags & FNODES)
 			if (sd.nodes >= chronos.nodes)
 				break;
-		if ((picker.count == 1) && (sd.depth > 3))
-			break;
 	}
 	ShowBestMove();
 }

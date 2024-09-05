@@ -35,65 +35,15 @@ class CTranspositionTable
 	U64 size;
 	U64 mask;
 	CRec* tt;
-
 public:
 	U16 age;
-
-	CTranspositionTable() {
-		Resize(10);
-	}
-
-	~CTranspositionTable() {
-		delete tt;
-	}
-
-	void Clear() {
-		used = 0;
-		std::memset(tt, 0, sizeof(CRec) * size);
-	}
-
-	int Permill()
-	{
-		return (int)(used * 1000ul / size);
-	}
-
-	void Resize(uint64_t mbSize)
-	{
-		size = 1;
-		while (size <= mbSize)
-			size <<= 1;
-		size = static_cast<uint64_t>(size << 20) / sizeof(CRec);
-		mask = size - 1;
-		free(tt);
-		tt = (CRec*)calloc(size, sizeof(CRec));
-		Clear();
-	}
-
-	bool SetRec(uint64_t hash, int16_t score, U16 move, RecType type, int depth) {
-		U64 index = hash & mask;
-		CRec* enP = &tt[index];
-		if (!enP->hash) {
-			enP->SetRec(hash, score, move, type, depth, age);
-			used++;
-			return true;
-		}
-		else if (
-			enP->age != age
-			|| type == NODE_PV
-			|| (enP->type != NODE_PV && enP->depth <= depth)) {
-			enP->SetRec(hash, score, move, type, depth, age);
-			return true;
-		}
-		return false;
-	}
-
-	CRec* GetRec(U64 hash) {
-		U64 index = hash & mask;
-		CRec* enP = &tt[index];
-		if (enP->hash == hash)
-			return enP;
-		return nullptr;
-	}
+	CTranspositionTable();
+	~CTranspositionTable();
+	void Clear();
+	int Permill();
+	void Resize(U64 mbSize);
+	bool SetRec(Hash hash, Score score, U16 move, RecType type, Depth depth);
+	CRec* GetRec(Hash hash);
 
 };
 

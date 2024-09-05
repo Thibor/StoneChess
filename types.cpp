@@ -148,3 +148,27 @@ std::ostream& operator<<(std::ostream& os, Move m) {
 	return os;
 }*/
 
+Stack stack[128];
+
+Move::Move(const std::string& move) {
+	Square fr = create_square(File(move[0] - 'a'), Rank(move[1] - '1'));
+	Square to = create_square(File(move[2] - 'a'), Rank(move[3] - '1'));
+	MoveFlags mf = MoveFlags::QUIET;
+	if (move.length() > 4)
+		if (move[5] == 'q')
+			mf = MoveFlags::PC_QUEEN;
+		else if (move[5] == 'r')
+			mf = MoveFlags::PC_ROOK;
+		else if (move[5] == 'b')
+			mf = MoveFlags::PC_BISHOP;
+		else if (move[5] == 'n')
+			mf = MoveFlags::PC_KNIGHT;
+	this->move = (mf << 12) | (fr << 6) | to;
+}
+
+string Move::ToUci() {
+	string uci = SQSTR[From()] + SQSTR[To()];
+	if (Flags() & PROMOTION)
+		return uci + MOVE_TYPESTR_UCI[Flags() & 7];
+	return uci;
+}

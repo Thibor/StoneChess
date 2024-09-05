@@ -88,7 +88,7 @@ void UciBench(int depth) {
 }
 
 void UciEval() {
-	S32 score = ShowEval();
+	Score score = ShowEval();
 	printf("score %d\n", score);
 }
 
@@ -123,6 +123,7 @@ void UciCommand(string str) {
 		puts("id author Thibor Raven");
 		printf("option name hash type spin default 64 min 1 max 1024\n");
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", optionsOrg.eloMax, optionsOrg.eloMin, optionsOrg.eloMax);
+		printf("option name LMR type spin default %d min %d max %d\n", optionsOrg.lmr, optionsOrg.lmrMin, optionsOrg.lmrMax);
 		printf("option name contempt type spin default %d min -50 max 50\n", optionsOrg.contempt);
 		printf("option name ponder type check default %s\n", optionsOrg.ponder ? "true" : "false");
 		puts("uciok");
@@ -240,6 +241,10 @@ void UciCommand(string str) {
 				options.elo = stoi(value);
 				EvalInit();
 			}
+			else if (StrToLower(name) == "lmr") {
+				options.lmr = stoi(value);
+				SearchInit();
+			}
 	}
 	else if (command == "bench") {
 		if (UciValue(split, "bench", value))
@@ -260,35 +265,6 @@ void UciCommand(string str) {
 //Main uci loop
 void UciLoop() {
 	position.SetFen();
-	//Picker picker;
-	// picker.Fill();
-	//picker.Sort();
-	/*for (int n = 0; n < picker.count; n++)
-	{
-		PickerE pe = picker.scores[n];
-		cout << pe.move.ToUci() << " " << pe.score << " " << pe.see << endl;
-	}*/
-	//position.SetFen("8/3n2pp/8/8/7P/3k1P2/1pp2PK1/2N5 b - - 2 55");
-	//UciEval();
-	//std::cout << position << std::endl;
-	//MoveList moves(position,WHITE);
-	//for (Move m : moves)std::cout << "     " << m << " iscapture: " << m.is_capture() << " flags: " << m.flags() << std::endl;
-
-	//UciCommand("position fen rnbq2k1/pppppppp/8/8/8/8/PPPPPPPP/RNBQ2K1 w KQkq - 0 1 ");
-	//UciCommand("position fen 1b1rr1k1/3q1pp1/8/NP1p1b1p/1B1Pp1n1/PQR1P1P1/4BP1P/5RK1 w - - 0 1");
-	//UciCommand("position startpos moves f2f4 d7d5 d2d3 e7e6 e2e4 f7f6 g2g3 e8f7 f1g2 f6f5 e4e5 g8h6 g1f3 f7g8 a2a3 c7c6 a1a2 d8b6");
-	//UciCommand("go wtime 52686 btime 49665 winc 0 binc 0");
-
-//UciCommand("position startpos moves e2e4 g8f6 e4e5 f6d5 d2d4 d7d6 g1f3 b8c6 f1b5 a7a6 b5c6 b7c6 e1g1 c8f5 a2a3 e7e6 d1e2 f8e7 c2c4 d5b6 b1c3 e8g8 c1e3 d6d5 b2b3 a6a5 c4c5 b6d7 a1e1 f7f6 e2d2 a8b8 b3b4 a5b4 a3b4 f5g4 e5f6 e7f6 c3e2 g4f3 g2f3 d8e8 e3f4 b8b7 b4b5 d7b8 b5b6 c7b6 f4d6 f6e7 e2f4 e7d6 c5d6 f8f6 d2e3 b7d7 f4e6 d7d6 e6c7 e8d7 e3e8 f6f8 e8d7 b8d7 e1e7 d6g6 g1h1 f8f7 e7f7 g8f7 f1a1 g6f6 h1g2 f6f4 a1c1 f4d4 c1c6 d4c4 c7e6 f7f6 c6c4 d5c4 e6c7 f6e5 c7b5 e5d5 g2h1 d5c5 b5c3 b6b5 c3e4 c5d4 e4d6 b5b4 d6b5 d4d3 b5c7 b4b3 h1g2 c4c3 c7d5 c3c2 d5f4 d3c4 f4e2 b3b2 h2h4 c4d3 e2c1");
-	//UciCommand("go movetime 1000");
-	//UciCommand("go depth 1");
-
-	//CMoveList moves(position,BLACK);
-	//for (Move m : moves)std::cout << "     " << m << " iscapture: " << m.IsCapture() << " flags: " << m.flags() << std::endl;
-	/*for (int n = 0;n < 8;n++) {
-		int r = 3 - floor(abs(n - 3.5));
-		cout <<r << endl;
-	}*/
 	string line;
 	while (true) {
 		getline(cin, line);

@@ -15,7 +15,7 @@ public:
 	int count = 0;
 	Move list[228];
 	PickerE scores[228];
-	void Fill(int phase);
+	void Fill();
 	int GetIndex(Move m);
 	PickerE Pick(int index);
 	void SetBest(int index);

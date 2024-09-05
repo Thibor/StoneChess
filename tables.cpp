@@ -107,8 +107,8 @@ Bitboard sliding_attacks(Square square, Bitboard occ, Bitboard mask) {
 //Returns rook attacks from a given square, using the Hyperbola Quintessence Algorithm. Only used to initialize
 //the magic lookup table
 Bitboard get_rook_attacks_for_init(Square square, Bitboard occ) {
-	return sliding_attacks(square, occ, MASK_FILE[file_of(square)]) |
-		sliding_attacks(square, occ, MASK_RANK[rank_of(square)]);
+	return sliding_attacks(square, occ, MASK_FILE[FileOf(square)]) |
+		sliding_attacks(square, occ, MASK_RANK[RankOf(square)]);
 }
 
 Bitboard ROOK_ATTACK_MASKS[64];
@@ -139,10 +139,10 @@ void initialise_rook_attacks() {
 	Bitboard edges, subset, index;
 
 	for (Square sq = a1; sq <= h8; ++sq) {
-		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[rank_of(sq)]) |
-			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[file_of(sq)]);
-		ROOK_ATTACK_MASKS[sq] = (MASK_RANK[rank_of(sq)]
-			^ MASK_FILE[file_of(sq)]) & ~edges;
+		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[RankOf(sq)]) |
+			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[FileOf(sq)]);
+		ROOK_ATTACK_MASKS[sq] = (MASK_RANK[RankOf(sq)]
+			^ MASK_FILE[FileOf(sq)]) & ~edges;
 		ROOK_ATTACK_SHIFTS[sq] = 64 - pop_count(ROOK_ATTACK_MASKS[sq]);
 
 		subset = 0;
@@ -205,8 +205,8 @@ void initialise_bishop_attacks() {
 	Bitboard edges, subset, index;
 
 	for (Square sq = a1; sq <= h8; ++sq) {
-		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[rank_of(sq)]) |
-			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[file_of(sq)]);
+		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[RankOf(sq)]) |
+			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[FileOf(sq)]);
 		BISHOP_ATTACK_MASKS[sq] = (MASK_DIAGONAL[diagonal_of(sq)]
 			^ MASK_ANTI_DIAGONAL[anti_diagonal_of(sq)]) & ~edges;
 		BISHOP_ATTACK_SHIFTS[sq] = 64 - pop_count(BISHOP_ATTACK_MASKS[sq]);
@@ -246,7 +246,7 @@ void initialise_squares_between() {
 	for (Square sq1 = a1; sq1 <= h8; ++sq1)
 		for (Square sq2 = a1; sq2 <= h8; ++sq2) {
 			sqs = SQUARE_BB[sq1] | SQUARE_BB[sq2];
-			if (file_of(sq1) == file_of(sq2) || rank_of(sq1) == rank_of(sq2))
+			if (FileOf(sq1) == FileOf(sq2) || RankOf(sq1) == RankOf(sq2))
 				SQUARES_BETWEEN_BB[sq1][sq2] =
 				get_rook_attacks_for_init(sq1, sqs) & get_rook_attacks_for_init(sq2, sqs);
 			else if (diagonal_of(sq1) == diagonal_of(sq2) || anti_diagonal_of(sq1) == anti_diagonal_of(sq2))
@@ -263,7 +263,7 @@ Bitboard LINE[64][64];
 void initialise_line() {
 	for (Square sq1 = a1; sq1 <= h8; ++sq1)
 		for (Square sq2 = a1; sq2 <= h8; ++sq2) {
-			if (file_of(sq1) == file_of(sq2) || rank_of(sq1) == rank_of(sq2))
+			if (FileOf(sq1) == FileOf(sq2) || RankOf(sq1) == RankOf(sq2))
 				LINE[sq1][sq2] =
 				get_rook_attacks_for_init(sq1, 0) & get_rook_attacks_for_init(sq2, 0)
 				| SQUARE_BB[sq1] | SQUARE_BB[sq2];
