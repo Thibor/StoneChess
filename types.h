@@ -22,6 +22,7 @@ using namespace std;
 #define Hash unsigned __int64
 #define Score signed __int16
 #define Depth signed __int16
+#define DScore signed __int32
 
 typedef uint64_t Bitboard;
 

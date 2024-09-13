@@ -1,11 +1,12 @@
 #include "CTranspositionTable.h"
 
 #include "types.h"
+#include "uci.h"
 
 CTranspositionTable tt;
 
 CTranspositionTable::CTranspositionTable() {
-	Resize(10);
+	Resize(options.hash);
 }
 
 CTranspositionTable::~CTranspositionTable() {
@@ -14,7 +15,7 @@ CTranspositionTable::~CTranspositionTable() {
 
 void CTranspositionTable::Clear() {
 	used = 0;
-	memset(tt, 0, sizeof(CRec) * size);
+	std::memset(tt, 0, sizeof(CRec) * size);
 }
 
 CRec* CTranspositionTable:: GetRec(Hash hash) {

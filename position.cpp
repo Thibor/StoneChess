@@ -11,8 +11,6 @@ U64 zobrist::hashColor;
 //Used to incrementally update the hash key of a position
 U64 zobrist::zobrist_table[NPIECES][NSQUARES];
 
-const int phases[] = { 0, 1, 1, 2, 4, 0 };
-
 //Initializes the zobrist table with random 64-bit numbers
 void zobrist::InitialiseZobristKeys() {
 	PRNG rng(70026072);

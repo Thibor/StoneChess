@@ -3,35 +3,35 @@
 void Picker::Fill() {
 	index = 0;
 	for (int n = 0; n < count; n++) {
-		Move m = list[n];
-		scores[n].move = m;
-		scores[n].score = Eval(m,scores[n].see);
+		Move m = mList[n];
+		pList[n].move = m;
+		pList[n].score = Eval(m,pList[n].see);
 	}
 }
 
 PickerE Picker::Pick(int index) {
 	int bstI = index;
-	S16 bstS = scores[bstI].score;
+	Score bstS = pList[bstI].score;
 	for (int n = index + 1; n < count; n++) {
-		S16 curS = scores[n].score;
+		Score curS = pList[n].score;
 		if (bstS < curS) {
 			bstS = curS;
 			bstI = n;
 		}
 	}
 	if (index != bstI) {
-		PickerE e = scores[index];
-		scores[index] = scores[bstI];
-		scores[bstI] = e;
+		PickerE e = pList[index];
+		pList[index] = pList[bstI];
+		pList[bstI] = e;
 	}
-	return scores[index];
+	return pList[index];
 }
 
 void Picker::SetBest(int index) {
-	PickerE e = scores[index];
+	PickerE e = pList[index];
 	for (int i = index; i > 0; i--)
-		scores[i] = scores[i - 1];
-	scores[0] = e;
+		pList[i] = pList[i - 1];
+	pList[0] = e;
 }
 
 void Picker::Sort() {
@@ -41,20 +41,20 @@ void Picker::Sort() {
 
 int Picker::GetIndex(Move m) {
 	for (int n = 0; n < count; n++)
-		if (scores[n].move == m)
+		if (pList[n].move == m)
 			return n;
 	return -1;
 }
 
 bool Picker::SetMove(Move m) {
 	int i = GetIndex(m);
-	sd.moveSetTry++;
+	sd.moveSet++;
 	if (i < 0)
 		return false;
-	sd.moveSetOk++;
+	sd.moveOk++;
 	index++;
 	for (int n = i; n > 0; n--)
-		scores[n] = scores[n - 1];
-	scores[0].move = m;
+		pList[n] = pList[n - 1];
+	pList[0].move = m;
 	return true;
 }

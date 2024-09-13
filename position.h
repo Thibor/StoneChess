@@ -99,14 +99,14 @@ public:
 	inline Piece Board(Square sq) const { return board[sq]; }
 	inline Color ColorUs() const { return side_to_play; }
 	inline Color ColorEn() const { return ~side_to_play; }
-	/*inline Bitboard East(const Bitboard bb) { return (bb << 1) & ~0x0101010101010101ULL; }
+	inline Bitboard East(const Bitboard bb) { return (bb << 1) & ~0x0101010101010101ULL; }
 	inline Bitboard West(const Bitboard bb) { return (bb >> 1) & ~0x8080808080808080ULL; }
 	inline Bitboard North(const Bitboard bb) { return bb << 8; }
 	inline Bitboard South(const Bitboard bb) { return bb >> 8; }
 	inline Bitboard NorthWest(const Bitboard bb) { return North(West(bb)); }
 	inline Bitboard NorthEast(const Bitboard bb) { return North(East(bb)); }
 	inline Bitboard SouthWest(const Bitboard bb) { return South(West(bb)); }
-	inline Bitboard SouthEast(const Bitboard bb) { return South(East(bb)); }*/
+	inline Bitboard SouthEast(const Bitboard bb) { return South(East(bb)); }
 	void MoveList(Color color, Move* list, int& count, bool quiet = true);
 	void MoveList(Move* list, int& count, bool quiet = true);
 	bool InCheck(Color color);

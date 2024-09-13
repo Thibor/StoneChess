@@ -7,7 +7,7 @@ using namespace std;
 bool pipe;
 HANDLE hstdin;
 
-int InputInit()
+int InitImput()
 {
 	unsigned long dw;
 	hstdin = GetStdHandle(STD_INPUT_HANDLE);

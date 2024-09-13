@@ -13,8 +13,8 @@ class Picker {
 public:
 	int index = 0;
 	int count = 0;
-	Move list[228];
-	PickerE scores[228];
+	Move mList[228];
+	PickerE pList[228];
 	void Fill();
 	int GetIndex(Move m);
 	PickerE Pick(int index);

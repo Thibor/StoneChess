@@ -6,20 +6,17 @@
 #include "uci.h"
 
 struct SEval {
-	int scorePawnPassed = 0;
-	int scorePawnBlocked = 0;
-	int scorePawnDoubled = 0;
-	int scoreBishopPair = 0;
-	int scoreKingShelter = 0;
-	int scorePiece[6] = {};
+	DScore scorePawnPassed = 0;
+	DScore scorePawnBlocked = 0;
+	DScore scorePawnDoubled = 0;
+	DScore scoreBishopPair = 0;
+	DScore scoreKingShelter = 0;
+	DScore scorePiece[6] = {};
 };
 
-const int materialMax[] = { 128,421,404, 596, 1271, 0 };
-const int phases[] = { 0, 1, 1, 2, 4, 0 };
-
-S32 Eval();
-S32 Eval(Move m,Score &see);
-void EvalInit();
-S32 See(Move m);
-S32 ShowEval();
+Score Eval();
+Score Eval(Move m,Score &see);
+void InitEval();
+Score See(Move m);
+Score ShowEval();
 SEval Eval(Position &pos, Color color, Square kpUs, Square kpEn);

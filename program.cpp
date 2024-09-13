@@ -37,9 +37,9 @@ void PrintSummary(uint64_t time, uint64_t nodes) {
 
 int main() {
 	PrintWelcome();
-	InputInit();
-	EvalInit();
-	SearchInit();
+	InitImput();
+	InitEval();
+	InitSearch();
 	initialise_all_databases();
 	zobrist::InitialiseZobristKeys();
 	position.SetFen();

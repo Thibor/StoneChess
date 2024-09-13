@@ -3,7 +3,6 @@
 using namespace std;
 
 SOptions options;
-SOptions optionsOrg;
 
 //Get next word after uci command
 bool UciValue(vector<string> list, string command, string& value) {
@@ -122,10 +121,13 @@ void UciCommand(string str) {
 		puts("id name StoneChess");
 		puts("id author Thibor Raven");
 		printf("option name hash type spin default 64 min 1 max 1024\n");
-		printf("option name UCI_Elo type spin default %d min %d max %d\n", optionsOrg.eloMax, optionsOrg.eloMin, optionsOrg.eloMax);
-		printf("option name LMR type spin default %d min %d max %d\n", optionsOrg.lmr, optionsOrg.lmrMin, optionsOrg.lmrMax);
-		printf("option name contempt type spin default %d min -50 max 50\n", optionsOrg.contempt);
-		printf("option name ponder type check default %s\n", optionsOrg.ponder ? "true" : "false");
+		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);
+		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmrMin, options.lmrMax);
+		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futilityMin, options.futilityMax);
+		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoringMin, options.razoringMax);
+		printf("option name centrality type spin default %d min %d max %d\n", options.centrality, options.centralityMin, options.centralityMax);
+		printf("option name contempt type spin default %d min -50 max 50\n", options.contempt);
+		printf("option name ponder type check default %s\n", options.ponder ? "true" : "false");
 		puts("uciok");
 	}
 	else if (command == "isready")
@@ -239,11 +241,23 @@ void UciCommand(string str) {
 				options.contempt = stoi(value) * 10;
 			else if (StrToLower(name) == "uci_elo") {
 				options.elo = stoi(value);
-				EvalInit();
+				InitEval();
 			}
 			else if (StrToLower(name) == "lmr") {
 				options.lmr = stoi(value);
-				SearchInit();
+				InitSearch();
+			}
+			else if (StrToLower(name) == "futility") {
+				options.futility = stoi(value);
+				InitSearch();
+			}
+			else if (StrToLower(name) == "razoring") {
+				options.razoring = stoi(value);
+				InitSearch();
+			}
+			else if (StrToLower(name) == "centrality") {
+				options.centrality = stoi(value);
+				InitEval();
 			}
 	}
 	else if (command == "bench") {
