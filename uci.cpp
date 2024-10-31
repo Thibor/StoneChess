@@ -2,8 +2,6 @@
 
 using namespace std;
 
-SOptions options;
-
 //Get next word after uci command
 bool UciValue(vector<string> list, string command, string& value) {
 	value = "";
@@ -13,6 +11,20 @@ bool UciValue(vector<string> list, string command, string& value) {
 			return true;
 		}
 	return false;
+}
+
+//Get next word after uci command
+bool UciValues(vector<string> list, string command, string& value) {
+	bool result = false;
+	value = "";
+	for (size_t n = 0; n < list.size(); n++) {
+		if (result)
+			value += " " + list[n];
+		else if (list[n] == command)
+			result = true;
+	}
+	value = trim(value);
+	return result;
 }
 
 //Performance test
@@ -87,8 +99,17 @@ void UciBench(int depth) {
 }
 
 void UciEval() {
-	Score score = ShowEval();
+	Value score = ShowEval();
 	printf("score %d\n", score);
+}
+
+void UciTest() {
+	position.SetFen("r4rk1/ppp2ppp/1nnb4/8/1P1P3q/PBN1B2P/4bPP1/R2QR1K1 w - - 0 1");
+	chronos.Reset();
+	//chronos.flags |= FINFINITE;
+	chronos.flags |= FMOVETIME;
+	chronos.movetime = 1000;
+	SearchIterate();
 }
 
 void UciPonderhit()
@@ -118,22 +139,39 @@ void UciCommand(string str) {
 	string command = split[0];
 	if (command == "uci")
 	{
+		int delta = 50;
 		puts("id name StoneChess");
 		puts("id author Thibor Raven");
 		printf("option name hash type spin default 64 min 1 max 1024\n");
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);
-		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmrMin, options.lmrMax);
-		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futilityMin, options.futilityMax);
-		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoringMin, options.razoringMax);
-		printf("option name centrality type spin default %d min %d max %d\n", options.centrality, options.centralityMin, options.centralityMax);
-		printf("option name contempt type spin default %d min -50 max 50\n", options.contempt);
+		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmr - delta, options.lmr + delta);
+		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futility - delta, options.futility + delta);
+		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoring - delta, options.razoring + delta);
+		printf("option name null type spin default %d min %d max %d\n", options.nullMove, options.nullMove - delta, options.nullMove + delta);
+		printf("option name rfp type spin default %d min %d max %d\n", options.rfp, options.rfp - delta, options.rfp + delta);
+		printf("option name contempt type spin default %d min %d max %d\n", options.contempt, options.contempt - delta, options.contempt + delta);
+		printf("option name aspiration type spin default %d min 16 max 128\n", options.aspiration);
 		printf("option name ponder type check default %s\n", options.ponder ? "true" : "false");
+		printf("option name material type string default %s\n", options.materialDel.c_str());
+		printf("option name outside_rank type string default %s\n", options.outsideRank.c_str());
+		printf("option name outside_file type string default %s\n", options.outsideFile.c_str());
+		printf("option name mobility type string default %s\n", options.mobility.c_str());
+		printf("option name passed type string default %s\n", options.passed.c_str());
+		printf("option name pawn type string default %s\n", options.pawn.c_str());
+		printf("option name rook type string default %s\n", options.rook.c_str());
+		printf("option name king type string default %s\n", options.king.c_str());
+		printf("option name outpost type string default %s\n", options.outpost.c_str());
+		printf("option name pair type string default %s\n", options.pair.c_str());
+		printf("option name tempo type string default %s\n", options.tempo.c_str());
 		puts("uciok");
 	}
 	else if (command == "isready")
 		puts("readyok");
-	else if (command == "ucinewgame")
+	else if (command == "ucinewgame") {
 		tt.Clear();
+		InitEval();
+		InitSearch();
+	}
 	else if (command == "position") {
 		bool bfen = false;
 		bool bmov = false;
@@ -231,34 +269,51 @@ void UciCommand(string str) {
 	else if (command == "setoption")
 	{
 		string name;
-		bool isValue = UciValue(split, "value", value);
-		if (isValue && UciValue(split, "name", name))
+		bool isValue = UciValues(split, "value", value);
+		if (isValue && UciValue(split, "name", name)) {
 			if (name == "ponder")
 				options.ponder = value == "true";
 			else if (name == "hash")
 				tt.Resize(stoi(value));
 			else if (name == "contempt")
 				options.contempt = stoi(value) * 10;
-			else if (StrToLower(name) == "uci_elo") {
+			else if (StrToLower(name) == "aspiration")
+				options.aspiration = stoi(value);
+			else if (StrToLower(name) == "uci_elo")
 				options.elo = stoi(value);
-				InitEval();
-			}
-			else if (StrToLower(name) == "lmr") {
+			else if (StrToLower(name) == "lmr")
 				options.lmr = stoi(value);
-				InitSearch();
-			}
-			else if (StrToLower(name) == "futility") {
+			else if (StrToLower(name) == "futility")
 				options.futility = stoi(value);
-				InitSearch();
-			}
-			else if (StrToLower(name) == "razoring") {
+			else if (StrToLower(name) == "razoring")
 				options.razoring = stoi(value);
-				InitSearch();
-			}
-			else if (StrToLower(name) == "centrality") {
-				options.centrality = stoi(value);
-				InitEval();
-			}
+			else if (StrToLower(name) == "null")
+				options.nullMove = stoi(value);
+			else if (StrToLower(name) == "rfp")
+				options.rfp = stoi(value);
+			else if (StrToLower(name) == "material")
+				options.materialDel = value;
+			else if (StrToLower(name) == "outside_rank")
+				options.outsideRank = value;
+			else if (StrToLower(name) == "outside_file")
+				options.outsideFile = value;
+			else if (StrToLower(name) == "mobility")
+				options.mobility = value;
+			else if (StrToLower(name) == "passed")
+				options.passed = value;
+			else if (StrToLower(name) == "pawn")
+				options.pawn = value;
+			else if (StrToLower(name) == "rook")
+				options.rook = value;
+			else if (StrToLower(name) == "king")
+				options.king = value;
+			else if (StrToLower(name) == "outpost")
+				options.outpost = value;
+			else if (StrToLower(name) == "pair")
+				options.pair = value;
+			else if (StrToLower(name) == "tempo")
+				options.tempo = value;
+		}
 	}
 	else if (command == "bench") {
 		if (UciValue(split, "bench", value))
@@ -274,11 +329,12 @@ void UciCommand(string str) {
 	}
 	else if (command == "eval")
 		UciEval();
+	else if (command == "test")
+		UciTest();
 }
 
-//Main uci loop
+//main uci loop
 void UciLoop() {
-	position.SetFen();
 	string line;
 	while (true) {
 		getline(cin, line);

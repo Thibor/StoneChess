@@ -2,40 +2,45 @@
 
 #include "types.h"
 
-extern const Bitboard KING_ATTACKS[NSQUARES];
-extern const Bitboard KNIGHT_ATTACKS[NSQUARES];
-extern const Bitboard WHITE_PAWN_ATTACKS[NSQUARES];
-extern const Bitboard BLACK_PAWN_ATTACKS[NSQUARES];
+extern const Bitboard KING_ATTACKS[SQUARE_NB];
+extern const Bitboard KNIGHT_ATTACKS[SQUARE_NB];
+extern const Bitboard WHITE_PAWN_ATTACKS[SQUARE_NB];
+extern const Bitboard BLACK_PAWN_ATTACKS[SQUARE_NB];
 
 extern Bitboard reverse(Bitboard b);
 extern Bitboard sliding_attacks(Square square, Bitboard occ, Bitboard mask);
 
 extern Bitboard get_rook_attacks_for_init(Square square, Bitboard occ);
-extern const Bitboard ROOK_MAGICS[NSQUARES];
-extern Bitboard ROOK_ATTACK_MASKS[NSQUARES];
-extern int ROOK_ATTACK_SHIFTS[NSQUARES];
-extern Bitboard ROOK_ATTACKS[NSQUARES][4096];
+extern const Bitboard ROOK_MAGICS[SQUARE_NB];
+extern Bitboard ROOK_ATTACK_MASKS[SQUARE_NB];
+extern int ROOK_ATTACK_SHIFTS[SQUARE_NB];
+extern Bitboard ROOK_ATTACKS[SQUARE_NB][4096];
 extern void initialise_rook_attacks();
 
 
-extern constexpr Bitboard get_rook_attacks(Square square, Bitboard occ);
+extern constexpr Bitboard GetRookAttacks(Square square, Bitboard occ);
 extern Bitboard get_xray_rook_attacks(Square square, Bitboard occ, Bitboard blockers);
 
 extern Bitboard get_bishop_attacks_for_init(Square square, Bitboard occ);
-extern const Bitboard BISHOP_MAGICS[NSQUARES];
-extern Bitboard BISHOP_ATTACK_MASKS[NSQUARES];
-extern int BISHOP_ATTACK_SHIFTS[NSQUARES];
-extern Bitboard BISHOP_ATTACKS[NSQUARES][512];
+extern const Bitboard BISHOP_MAGICS[SQUARE_NB];
+extern Bitboard BISHOP_ATTACK_MASKS[SQUARE_NB];
+extern int BISHOP_ATTACK_SHIFTS[SQUARE_NB];
+extern Bitboard BISHOP_ATTACKS[SQUARE_NB][512];
 extern void initialise_bishop_attacks();
 
 
-extern constexpr Bitboard get_bishop_attacks(Square square, Bitboard occ);
+extern constexpr Bitboard GetBishopAttacks(Square square, Bitboard occ);
 extern Bitboard get_xray_bishop_attacks(Square square, Bitboard occ, Bitboard blockers);
 
-extern Bitboard SQUARES_BETWEEN_BB[NSQUARES][NSQUARES];
-extern Bitboard LINE[NSQUARES][NSQUARES];
-extern Bitboard PAWN_ATTACKS[NCOLORS][NSQUARES];
-extern Bitboard PSEUDO_LEGAL_ATTACKS[NPIECE_TYPES][NSQUARES];
+extern Bitboard SQUARES_BETWEEN_BB[SQUARE_NB][SQUARE_NB];
+extern Bitboard LINE[SQUARE_NB][SQUARE_NB];
+extern Bitboard PAWN_ATTACKS[COLOR_NB][SQUARE_NB];
+extern Bitboard PSEUDO_LEGAL_ATTACKS[PT_NB][SQUARE_NB];
+extern Bitboard bbForwardFiles[COLOR_NB][SQUARE_NB];
+extern Bitboard bbForwardRank[COLOR_NB][RANK_NB];
+extern Bitboard bbPawnAttackSpan[COLOR_NB][SQUARE_NB];
+extern Bitboard bbAdjacentFiles[FILE_NB];
+extern Bitboard bbPassedPawnMask[COLOR_NB][SQUARE_NB];
 
 extern void initialise_squares_between();
 extern void initialise_line();
@@ -47,8 +52,8 @@ extern void initialise_all_databases();
 template<PieceType P>
 constexpr Bitboard attacks(Square s, Bitboard occ) {
 	static_assert(P != PAWN, "The piece type may not be a pawn; use pawn_attacks instead");
-	return P == ROOK ? get_rook_attacks(s, occ) :
-		P == BISHOP ? get_bishop_attacks(s, occ) :
+	return P == ROOK ? GetRookAttacks(s, occ) :
+		P == BISHOP ? GetBishopAttacks(s, occ) :
 		P == QUEEN ? attacks<ROOK>(s, occ) | attacks<BISHOP>(s, occ) :
 		PSEUDO_LEGAL_ATTACKS[P][s];
 }
@@ -78,3 +83,15 @@ constexpr Bitboard PawnAttacks(Color c,Bitboard p) {
 constexpr Bitboard PawnAttacks(Color c,Square s) {
 	return PAWN_ATTACKS[c][s];
 }
+
+constexpr Bitboard BBFile(Square sq) {
+	return MASK_FILE[FileOf(sq)];
+}
+
+constexpr Bitboard BBRank(Square sq) {
+	return MASK_RANK[RankOf(sq)];
+}
+
+constexpr Bitboard BBColor(Bitboard bb) { 
+	return bb & bbLight ? bbLight : bbDark;
+};

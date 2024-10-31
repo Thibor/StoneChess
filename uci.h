@@ -9,25 +9,29 @@
 struct SOptions
 {
 	bool ponder = true;
-	Score contempt = 0;
+	Value contempt = 0;
 	int hash = 10;
 	int elo = 2500;
 	int eloMin = 0;
 	int eloMax = 2500;
-	int lmr = 50;
-	int lmrMin = 0;
-	int lmrMax = 100;
-	int futility = 50;
-	int futilityMin = 0;
-	int futilityMax = 100;
-	int razoring = 50;
-	int razoringMin = 0;
-	int razoringMax = 100;
-	int centrality = 50;
-	int centralityMin = 0;
-	int centralityMax = 100;
+	int lmr = 0;
+	int futility = 0;
+	int razoring = 0;
+	int nullMove = 0;
+	int rfp = 0;
 	// size of the aspiration window ( val-ASPITATION, val+ASPIRATION )
-	Score aspiration = 50;
+	Value aspiration = 50;
+	string materialDel = "0 0 0 0 0";
+	string outpost = "0 0 0 0 0 0 0 0";
+	string outsideRank = "0 0 0 0 0 0 0 0 0 0 0 0";
+	string outsideFile = "0 0 0 0 0 0 0 0 0 0 0 0";
+	string mobility = "0 0 0 0 0 0 0 0 0 0 0 0";
+	string passed = "0 0 0 0 0";
+	string pawn = "0 0 0 0 0 0";
+	string rook = "0 0 0 0";
+	string king = "0 0";
+	string pair = "0 0 0 0 0 0";
+	string tempo = "0 0";
 };
 extern SOptions options;
 

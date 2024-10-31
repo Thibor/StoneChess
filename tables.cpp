@@ -138,12 +138,12 @@ const Bitboard ROOK_MAGICS[64] = {
 void initialise_rook_attacks() {
 	Bitboard edges, subset, index;
 
-	for (Square sq = a1; sq <= h8; ++sq) {
-		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[RankOf(sq)]) |
-			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[FileOf(sq)]);
+	for (Square sq = SQ_A1; sq <= SQ_H8; ++sq) {
+		edges = ((MASK_RANK[FILE_A] | MASK_RANK[FILE_H]) & ~MASK_RANK[RankOf(sq)]) |
+			((MASK_FILE[FILE_A] | MASK_FILE[FILE_H]) & ~MASK_FILE[FileOf(sq)]);
 		ROOK_ATTACK_MASKS[sq] = (MASK_RANK[RankOf(sq)]
 			^ MASK_FILE[FileOf(sq)]) & ~edges;
-		ROOK_ATTACK_SHIFTS[sq] = 64 - pop_count(ROOK_ATTACK_MASKS[sq]);
+		ROOK_ATTACK_SHIFTS[sq] = 64 - PopCount(ROOK_ATTACK_MASKS[sq]);
 
 		subset = 0;
 		do {
@@ -157,7 +157,7 @@ void initialise_rook_attacks() {
 }
 
 //Returns the attacks bitboard for a rook at a given square, using the magic lookup table
-constexpr Bitboard get_rook_attacks(Square square, Bitboard occ) {
+constexpr Bitboard GetRookAttacks(Square square, Bitboard occ) {
 	return ROOK_ATTACKS[square][((occ & ROOK_ATTACK_MASKS[square]) * ROOK_MAGICS[square])
 		>> ROOK_ATTACK_SHIFTS[square]];
 }
@@ -165,9 +165,9 @@ constexpr Bitboard get_rook_attacks(Square square, Bitboard occ) {
 //Returns the 'x-ray attacks' for a rook at a given square. X-ray attacks cover squares that are not immediately
 //accessible by the rook, but become available when the immediate blockers are removed from the board 
 Bitboard get_xray_rook_attacks(Square square, Bitboard occ, Bitboard blockers) {
-	Bitboard attacks = get_rook_attacks(square, occ);
+	Bitboard attacks = GetRookAttacks(square, occ);
 	blockers &= attacks;
-	return attacks ^ get_rook_attacks(square, occ ^ blockers);
+	return attacks ^ GetRookAttacks(square, occ ^ blockers);
 }
 
 //Returns bishop attacks from a given square, using the Hyperbola Quintessence Algorithm. Only used to initialize
@@ -204,12 +204,12 @@ const Bitboard BISHOP_MAGICS[64] = {
 void initialise_bishop_attacks() {
 	Bitboard edges, subset, index;
 
-	for (Square sq = a1; sq <= h8; ++sq) {
-		edges = ((MASK_RANK[AFILE] | MASK_RANK[HFILE]) & ~MASK_RANK[RankOf(sq)]) |
-			((MASK_FILE[AFILE] | MASK_FILE[HFILE]) & ~MASK_FILE[FileOf(sq)]);
+	for (Square sq = SQ_A1; sq <= SQ_H8; ++sq) {
+		edges = ((MASK_RANK[FILE_A] | MASK_RANK[FILE_H]) & ~MASK_RANK[RankOf(sq)]) |
+			((MASK_FILE[FILE_A] | MASK_FILE[FILE_H]) & ~MASK_FILE[FileOf(sq)]);
 		BISHOP_ATTACK_MASKS[sq] = (MASK_DIAGONAL[diagonal_of(sq)]
 			^ MASK_ANTI_DIAGONAL[anti_diagonal_of(sq)]) & ~edges;
-		BISHOP_ATTACK_SHIFTS[sq] = 64 - pop_count(BISHOP_ATTACK_MASKS[sq]);
+		BISHOP_ATTACK_SHIFTS[sq] = 64 - PopCount(BISHOP_ATTACK_MASKS[sq]);
 
 		subset = 0;
 		do {
@@ -223,7 +223,7 @@ void initialise_bishop_attacks() {
 }
 
 //Returns the attacks bitboard for a bishop at a given square, using the magic lookup table
-constexpr Bitboard get_bishop_attacks(Square square, Bitboard occ) {
+constexpr Bitboard GetBishopAttacks(Square square, Bitboard occ) {
 	return BISHOP_ATTACKS[square][((occ & BISHOP_ATTACK_MASKS[square]) * BISHOP_MAGICS[square])
 		>> BISHOP_ATTACK_SHIFTS[square]];
 }
@@ -231,9 +231,9 @@ constexpr Bitboard get_bishop_attacks(Square square, Bitboard occ) {
 //Returns the 'x-ray attacks' for a bishop at a given square. X-ray attacks cover squares that are not immediately
 //accessible by the rook, but become available when the immediate blockers are removed from the board 
 Bitboard get_xray_bishop_attacks(Square square, Bitboard occ, Bitboard blockers) {
-	Bitboard attacks = get_bishop_attacks(square, occ);
+	Bitboard attacks = GetBishopAttacks(square, occ);
 	blockers &= attacks;
-	return attacks ^ get_bishop_attacks(square, occ ^ blockers);
+	return attacks ^ GetBishopAttacks(square, occ ^ blockers);
 }
 
 
@@ -243,8 +243,8 @@ Bitboard SQUARES_BETWEEN_BB[64][64];
 //two squares are not aligned)
 void initialise_squares_between() {
 	Bitboard sqs;
-	for (Square sq1 = a1; sq1 <= h8; ++sq1)
-		for (Square sq2 = a1; sq2 <= h8; ++sq2) {
+	for (Square sq1 = SQ_A1; sq1 <= SQ_H8; ++sq1)
+		for (Square sq2 = SQ_A1; sq2 <= SQ_H8; ++sq2) {
 			sqs = SQUARE_BB[sq1] | SQUARE_BB[sq2];
 			if (FileOf(sq1) == FileOf(sq2) || RankOf(sq1) == RankOf(sq2))
 				SQUARES_BETWEEN_BB[sq1][sq2] =
@@ -261,8 +261,8 @@ Bitboard LINE[64][64];
 //Initializes the lookup table for the bitboard of all squares along the line of two given squares (0 if the 
 //two squares are not aligned)
 void initialise_line() {
-	for (Square sq1 = a1; sq1 <= h8; ++sq1)
-		for (Square sq2 = a1; sq2 <= h8; ++sq2) {
+	for (Square sq1 = SQ_A1; sq1 <= SQ_H8; ++sq1)
+		for (Square sq2 = SQ_A1; sq2 <= SQ_H8; ++sq2) {
 			if (FileOf(sq1) == FileOf(sq2) || RankOf(sq1) == RankOf(sq2))
 				LINE[sq1][sq2] =
 				get_rook_attacks_for_init(sq1, 0) & get_rook_attacks_for_init(sq2, 0)
@@ -275,8 +275,13 @@ void initialise_line() {
 }
 
 
-Bitboard PAWN_ATTACKS[NCOLORS][NSQUARES];
-Bitboard PSEUDO_LEGAL_ATTACKS[NPIECE_TYPES][NSQUARES];
+Bitboard PAWN_ATTACKS[COLOR_NB][SQUARE_NB];
+Bitboard PSEUDO_LEGAL_ATTACKS[PT_NB][SQUARE_NB];
+Bitboard bbForwardFiles[COLOR_NB][SQUARE_NB];
+Bitboard bbForwardRank[COLOR_NB][RANK_NB];
+Bitboard bbPawnAttackSpan[COLOR_NB][SQUARE_NB];
+Bitboard bbAdjacentFiles[FILE_NB];
+Bitboard bbPassedPawnMask[COLOR_NB][SQUARE_NB];
 
 //Initializes the table containg pseudolegal attacks of each piece for each square. This does not include blockers
 //for sliding pieces
@@ -285,7 +290,7 @@ void initialise_pseudo_legal() {
 	memcpy(PAWN_ATTACKS[BLACK], BLACK_PAWN_ATTACKS, sizeof(BLACK_PAWN_ATTACKS));
 	memcpy(PSEUDO_LEGAL_ATTACKS[KNIGHT], KNIGHT_ATTACKS, sizeof(KNIGHT_ATTACKS));
 	memcpy(PSEUDO_LEGAL_ATTACKS[KING], KING_ATTACKS, sizeof(KING_ATTACKS));
-	for (Square s = a1; s <= h8; ++s) {
+	for (Square s = SQ_A1; s <= SQ_H8; ++s) {
 		PSEUDO_LEGAL_ATTACKS[ROOK][s] = get_rook_attacks_for_init(s, 0);
 		PSEUDO_LEGAL_ATTACKS[BISHOP][s] = get_bishop_attacks_for_init(s, 0);
 		PSEUDO_LEGAL_ATTACKS[QUEEN][s] = PSEUDO_LEGAL_ATTACKS[ROOK][s] |
@@ -300,4 +305,15 @@ void initialise_all_databases() {
 	initialise_squares_between();
 	initialise_line();
 	initialise_pseudo_legal();
+	for (int f = FILE_A; f <= FILE_H; ++f)
+		bbAdjacentFiles[f] = (f > FILE_A ? MASK_FILE[f - 1] : 0) | (f < FILE_H ? MASK_FILE[f + 1] : 0);
+	for (int r = RANK_1; r < RANK_8; ++r)
+		bbForwardRank[WHITE][r] = ~(bbForwardRank[BLACK][r + 1] = bbForwardRank[BLACK][r] | MASK_RANK[r]);
+	for (int c = WHITE; c <= BLACK; ++c)
+		for (Square s = SQ_A1; s <= SQ_H8; ++s)
+		{
+			bbForwardFiles[c][s] = bbForwardRank[c][RankOf(s)] & MASK_FILE[FileOf(s)];
+			bbPawnAttackSpan[c][s] = bbForwardRank[c][RankOf(s)] & bbAdjacentFiles[FileOf(s)];
+			bbPassedPawnMask[c][s] = bbForwardFiles[c][s] | bbPawnAttackSpan[c][s];
+		}
 }

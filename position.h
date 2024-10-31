@@ -29,7 +29,7 @@ public:
 
 namespace zobrist {
 	extern Hash hashColor;
-	extern Hash zobrist_table[NPIECES][NSQUARES];
+	extern Hash zobrist_table[PIECE_NB][SQUARE_NB];
 	extern void InitialiseZobristKeys();
 }
 
@@ -49,11 +49,11 @@ struct UndoInfo {
 
 	int move50;
 
-	constexpr UndoInfo() : hash(0), move50(0), entry(0), captured(NO_PIECE), epsq(NO_SQUARE) {}
+	constexpr UndoInfo() : hash(0), move50(0), entry(0), captured(NO_PIECE), epsq(SQ_NONE) {}
 
 	//This preserves the entry bitboard across moves
 	constexpr UndoInfo(const UndoInfo& prev) :
-		hash(0), move50(0), entry(prev.entry), captured(NO_PIECE), epsq(NO_SQUARE) {}
+		hash(0), move50(0), entry(prev.entry), captured(NO_PIECE), epsq(SQ_NONE) {}
 };
 
 class Position {
@@ -63,13 +63,13 @@ private:
 	//The zobrist hash of the position, which can be incrementally updated and rolled back after each make/unmake
 	Hash hash;
 	//A mailbox representation of the board. Stores the piece occupying each square on the board
-	Piece board[NSQUARES];
+	Piece board[SQUARE_NB];
 public:
 	int move50;
 	int historyIndex;
 
 	//A bitboard of the locations of each piece
-	Bitboard piece_bb[NPIECES];
+	Bitboard piece_bb[PIECE_NB];
 
 	//The history of non-recoverable information
 	UndoInfo history[512];
@@ -94,8 +94,11 @@ public:
 	void SetFen(const string& fen = DEFAULT_FEN);
 	string GetFen() const;
 	inline Bitboard bitboard_of(Piece pc) const { return piece_bb[pc]; }
-	inline Bitboard bitboard_of(Color c, PieceType pt) const { return piece_bb[make_piece(c, pt)]; }
+	inline Bitboard bitboard_of(Color c, PieceType pt) const { return piece_bb[MakePiece(c, pt)]; }
 	inline Bitboard AllPieces()const;
+	inline Bitboard AllPieces(Color c) const;
+	inline Bitboard Pieces(PieceType pt)const;
+	inline Bitboard Pieces(PieceType pt, Color c) const;
 	inline Piece Board(Square sq) const { return board[sq]; }
 	inline Color ColorUs() const { return side_to_play; }
 	inline Color ColorEn() const { return ~side_to_play; }
@@ -117,7 +120,6 @@ public:
 	inline Hash GetHash() const { return hash; }
 	inline Bitboard DiagonalSliders(Color c) const;
 	inline Bitboard OrthogonalSliders(Color c) const;
-	inline Bitboard AllPieces(Color c) const;
 	inline Bitboard AttackersFrom(Color c, Square s, Bitboard occ) const;
 	inline Bitboard Attackers(Square s) const;
 	void MakeNull();
@@ -133,23 +135,19 @@ public:
 
 extern Position position;
 
-//Returns the bitboard of all bishops and queens of a given color
-inline Bitboard Position::DiagonalSliders(Color c) const {
-	return c == WHITE ? piece_bb[WHITE_BISHOP] | piece_bb[WHITE_QUEEN] :
-		piece_bb[BLACK_BISHOP] | piece_bb[BLACK_QUEEN];
-}
-
-//Returns the bitboard of all rooks and queens of a given color
-inline Bitboard Position::OrthogonalSliders(Color c) const {
-	return c == WHITE ? piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN] :
-		piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN];
-}
-
 //Return true if active player got major or minor pieces
 inline bool Position::NotOnlyPawns()const {
 	return side_to_play == WHITE ?
 		piece_bb[WHITE_KNIGHT] || piece_bb[WHITE_BISHOP] || piece_bb[WHITE_ROOK] || piece_bb[WHITE_QUEEN] :
 		piece_bb[BLACK_KNIGHT] || piece_bb[BLACK_BISHOP] || piece_bb[BLACK_ROOK] || piece_bb[BLACK_QUEEN];
+}
+
+inline Bitboard Position::Pieces(PieceType pt) const {
+	return piece_bb[pt] | piece_bb[pt | 0b1000];
+}
+
+inline Bitboard Position::Pieces(PieceType pt, Color c) const {
+	return c ? piece_bb[pt] : piece_bb[pt | 0b1000];
 }
 
 //Returns a bitboard containing all the pieces of a given color
@@ -165,59 +163,6 @@ inline Bitboard Position::AllPieces() const {
 		piece_bb[WHITE_PAWN] | piece_bb[WHITE_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN] | piece_bb[WHITE_KING] |
 		piece_bb[BLACK_PAWN] | piece_bb[BLACK_KNIGHT] | piece_bb[BLACK_BISHOP] | piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN] | piece_bb[BLACK_KING];
 }
-
-//Returns a bitboard containing all pieces of a given color attacking a particluar square
-inline Bitboard Position::AttackersFrom(Color c, Square s, Bitboard occ) const {
-	return c == WHITE ?
-		(PawnAttacks(BLACK, s) & piece_bb[WHITE_PAWN]) |
-		(attacks<KNIGHT>(s, occ) & piece_bb[WHITE_KNIGHT]) |
-		(attacks<BISHOP>(s, occ) & (piece_bb[WHITE_BISHOP] | piece_bb[WHITE_QUEEN])) |
-		(attacks<ROOK>(s, occ) & (piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN])) :
-		(PawnAttacks(WHITE, s) & piece_bb[BLACK_PAWN]) |
-		(attacks<KNIGHT>(s, occ) & piece_bb[BLACK_KNIGHT]) |
-		(attacks<BISHOP>(s, occ) & (piece_bb[BLACK_BISHOP] | piece_bb[BLACK_QUEEN])) |
-		(attacks<ROOK>(s, occ) & (piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN]));
-}
-
-//Returns a bitboard containing all pieces attacking a particluar square
-inline Bitboard Position::Attackers(Square s) const {
-	Bitboard occ = AllPieces();
-	return side_to_play == BLACK ?
-		(PawnAttacks(BLACK, s) & piece_bb[WHITE_PAWN]) |
-		(attacks<KNIGHT>(s, occ) & piece_bb[WHITE_KNIGHT]) |
-		(attacks<BISHOP>(s, occ) & (piece_bb[WHITE_BISHOP] | piece_bb[WHITE_QUEEN])) |
-		(attacks<ROOK>(s, occ) & (piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN])) :
-		(PawnAttacks(WHITE, s) & piece_bb[BLACK_PAWN]) |
-		(attacks<KNIGHT>(s, occ) & piece_bb[BLACK_KNIGHT]) |
-		(attacks<BISHOP>(s, occ) & (piece_bb[BLACK_BISHOP] | piece_bb[BLACK_QUEEN])) |
-		(attacks<ROOK>(s, occ) & (piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN]));
-}
-
-/*template<Color C>
-Bitboard Position::pinned(Square s, Bitboard us, Bitboard occ) const {
-	Bitboard pinned = 0;
-
-	Bitboard pinners = get_xray_rook_attacks(s, occ, us) & orthogonal_sliders<~C>();
-	while (pinners) pinned |= SQUARES_BETWEEN_BB[s][pop_lsb(&pinners)] & us;
-
-	pinners = get_xray_bishop_attacks(s, occ, us) & diagonal_sliders<~C>();
-	while (pinners) pinned |= SQUARES_BETWEEN_BB[s][pop_lsb(&pinners)] & us;
-
-	return pinned;
-}
-
-template<Color C>
-Bitboard Position::blockers_to(Square s, Bitboard occ) const {
-	Bitboard blockers = 0;
-	Bitboard candidates = get_rook_attacks(s, occ) & occ;
-	Bitboard attackers = get_rook_attacks(s, occ ^ candidates) & orthogonal_sliders<~C>();
-
-	candidates = get_bishop_attacks(s, occ) & occ;
-	attackers |= get_bishop_attacks(s, occ ^ candidates) & diagonal_sliders<~C>();
-
-	while (attackers) blockers |= SQUARES_BETWEEN_BB[s][pop_lsb(&attackers)];
-	return blockers;
-}*/
 
 //A convenience class for interfacing with legal moves, rather than using the low-level generate_legals() function directly
 class CMoveList {

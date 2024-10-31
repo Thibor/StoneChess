@@ -5,8 +5,8 @@
 
 struct PickerE {
 	Move move;
-	Score score = 0;
-	Score see = 0;
+	Value score = 0;
+	Value see = 0;
 };
 
 class Picker {

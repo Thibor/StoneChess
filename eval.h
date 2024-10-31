@@ -5,18 +5,24 @@
 #include "types.h"
 #include "uci.h"
 
-struct SEval {
-	DScore scorePawnPassed = 0;
-	DScore scorePawnBlocked = 0;
-	DScore scorePawnDoubled = 0;
-	DScore scoreBishopPair = 0;
-	DScore scoreKingShelter = 0;
-	DScore scorePiece[6] = {};
+struct SEvalSide {
+	bool chance = false;
+	Color color = COLOR_NB;
+	Square king = SQUARE_NB;
+	int piece[PT_NB] = {};
+	Score score = SCORE_ZERO;
+	Score scorePawnConnected = SCORE_ZERO;
+	Score scorePawnDoubled = SCORE_ZERO;
+	Score scorePawnIsolated = SCORE_ZERO;
+	Score scorePawnPassed = SCORE_ZERO;
+	Score scoreMobility = SCORE_ZERO;
+	Score scorePair = SCORE_ZERO;
+	Score scorePiece[PT_NB] = {};
 };
 
-Score Eval();
-Score Eval(Move m,Score &see);
+extern Value materialMax[];
 void InitEval();
-Score See(Move m);
-Score ShowEval();
-SEval Eval(Position &pos, Color color, Square kpUs, Square kpEn);
+Value Eval();
+Value Eval(Move m,Value &see);
+Value See(Move m);
+Value ShowEval();

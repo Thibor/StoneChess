@@ -11,9 +11,9 @@ void Picker::Fill() {
 
 PickerE Picker::Pick(int index) {
 	int bstI = index;
-	Score bstS = pList[bstI].score;
+	Value bstS = pList[bstI].score;
 	for (int n = index + 1; n < count; n++) {
-		Score curS = pList[n].score;
+		Value curS = pList[n].score;
 		if (bstS < curS) {
 			bstS = curS;
 			bstI = n;

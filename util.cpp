@@ -19,23 +19,42 @@ std::string trim(const std::string& s)
     return std::string(start, end + 1);
 }
 
-std::vector<std::string>& splitString(const std::string& txt, std::vector<std::string>& strs, char ch) {
+void splitString(const std::string& txt, std::vector<std::string>& vStr, char ch) {
+    vStr.clear();
+    if (txt == "")
+        return;
     size_t pos = txt.find(ch);
     size_t initialPos = 0;
-    strs.clear();
 
     // Decompose statement
     while (pos != std::string::npos) {
-        strs.push_back(txt.substr(initialPos, pos - initialPos));
+        vStr.push_back(txt.substr(initialPos, pos - initialPos));
         initialPos = pos + 1;
 
         pos = txt.find(ch, initialPos);
     }
 
     // Add the last one
-    strs.push_back(txt.substr(initialPos, std::min(pos, txt.size()) - initialPos + 1));
+    vStr.push_back(txt.substr(initialPos, std::min(pos, txt.size()) - initialPos + 1));
+}
 
-    return strs;
+void splitInt(const string& txt, vector<int>& vInt, char ch) {
+    vInt.clear();
+    if (txt == "")
+        return;
+    size_t pos = txt.find(ch);
+    size_t initialPos = 0;
+
+    // Decompose statement
+    while (pos != std::string::npos) {
+        vInt.push_back(stoi(txt.substr(initialPos, pos - initialPos)));
+        initialPos = pos + 1;
+
+        pos = txt.find(ch, initialPos);
+    }
+
+    // Add the last one
+    vInt.push_back(stoi(txt.substr(initialPos, std::min(pos, txt.size()) - initialPos + 1)));
 }
 
 // Function to put thousands

@@ -1,72 +1,107 @@
 #include "eval.h"
+#include "types.h"
+#include <algorithm>
+using namespace std;
 
 int phase;
 
-constexpr DScore S(const Score mg, const Score eg) {
-	return (eg << 16) + mg;
-}
-
-constexpr Score Mg(DScore score) {
-	return (short)score;
-}
-
-constexpr Score Eg(DScore score) {
-	return (score + 0x8000) >> 16;
-}
-
-constexpr Score Ag(DScore score) {
+constexpr static Value Ag(Score score) {
 	return max(Mg(score), Eg(score));
 }
 
-constexpr Score Pg(DScore score) {
+Value Pg(Score score) {
 	return (Mg(score) * phase + Eg(score) * (24 - phase)) / 24;
 }
 
-U64 shelterKingW = 0xE7;
-U64 shelterKingB = 0xE700000000000000ull;
-U64 shelterKW = 0x0700;
-U64 shelterKB = 0x0007000000000000ull;
-U64 shelterQW = 0xE000;
-U64 shelterQB = 0x00E0000000000000ull;
-U64 shelterSW = 0xC3D7;
-U64 shelterSB = 0xD7C3000000000000ull;
+const Score oursideRankOrg[PT_NB] = { S(-14, 16), S(-15, -15), S(-22, -6), S(7, 0), S(1, -20), S(20, -27) };
+Score outsideRank[PT_NB] = {};
+const Score outsideFileOrg[PT_NB] = { S(2, -6), S(-3, -5), S(6, -4), S(-6, -2), S(-4, -1), S(2, -2) };
+Score outsideFile[PT_NB] = {};
+const Score mobilityOrg[PT_NB] = { S(-4,128), S(8, 5), S(7, 7), S(3, 5), S(3, 2), S(-5, -1) };
+Score mobility[PT_NB] = {};
 
-const DScore psts[][4] = {
-	{S(-18, -1), S(-0, -6), S(9, 6), S(9, 1)},
-	{S(-22, -0), S(-5, -2), S(8, 1), S(20, 0)},
-	{S(1, -4), S(1, -2), S(-3, 1), S(1, 4)},
-	{S(-17, -1), S(3, -11), S(-10, 12), S(24, 1)},
-	{S(-2, -34), S(4, -19), S(-31, 22), S(29, 30)},
-	{S(-47, 0), S(-18, -1), S(60, -12), S(6, 12)},
+const Score scorePairOrg[PT_NB] = { SCORE_ZERO, S(10, 20), S(33, 56), S(10, 20),SCORE_ZERO,SCORE_ZERO };
+Score scorePair[PT_NB] = {};
+const Score rookOpenOrg = S(72, 1);
+Score rookOpen = SCORE_ZERO;
+const Score rookSemiOpenOrg = S(30, 12);
+Score rookSemiOpen = SCORE_ZERO;
+const Value materialVal[PT_NB] = { 100, 320, 330, 500, 900, SCORE_ZERO };
+const Value materialDelOrg[PT_NB] = { -20, 30, 20, -10, 40,SCORE_ZERO };
+Value materialDel[PT_NB] = {};
+Value materialMax[PT_NB] = {};
+Score material[PT_NB] = {};
+const int phases[PT_NB] = { 0, 1, 1, 2, 4, 0 };
+const int chance[PT_NB] = { 3, 1, 2, 3, 3, 0 };
+Score Bonus[PT_NB][RANK_NB][FILE_NB] = {};
+
+constexpr Value passedRankOrg = 128;
+Value passedRank = VALUE_ZERO;
+constexpr Value passedFileOrg = -4;
+Value passedFile = VALUE_ZERO;
+constexpr Value passedBlockedOrg = -46;
+Value passedBlocked = VALUE_ZERO;
+constexpr Value passedKUOrg = 3;
+Value passedKU = VALUE_ZERO;
+constexpr Value passedKEOrg = -1;
+Value passedKE = VALUE_ZERO;
+
+const Score kingShieldOrg = S(24, -11);
+Score kingShield = SCORE_ZERO;
+
+constexpr Score pawnConnectedOrg = S(4, 8);
+Score pawnConnected = SCORE_ZERO;
+constexpr Score pawnDoubledOrg = S(-21, -27);
+Score pawnDoubled = SCORE_ZERO;
+constexpr Score pawnIsolatedOrg = S(-5, -15);
+Score pawnIsolated = SCORE_ZERO;
+
+constexpr Score tempoOrg = S(20, 10);
+Score tempo = SCORE_ZERO;
+
+// Outpost[knight/bishop][supported by pawn] contains bonuses for minor
+// pieces if they occupy or can reach an outpost square, bigger if that
+// square is supported by a pawn.
+constexpr Score OutpostOrg[2][2] = {
+  { S(22, 6), S(36,12) }, // Knight
+  { S(9, 2), S(15, 5) }  // Bishop
 };
-const DScore centralities[] = { S(16, -14), S(15, 15), S(22, 6), S(-7, 0), S(-1, 20), S(-27, 20) };
-//const DScore centralities[] = { S(12, -10), S(12, 12), S(16, 4), S(-5, 0), S(-1, 15), S(-20, 14) };
-//const DScore centralities[] = { S(8, -7), S(8, 8), S(11, 3), S(-4, 0), S(-1, 10), S(-14, 10) };
-const DScore outside_files[] = { S(2, -6), S(-3, -5), S(6, -4), S(-6, -2), S(-4, -1), S(2, -2) };
-const DScore pawn_protection[] = { S(10, 15), S(11, 21), S(-6, 18), S(-4, 13), S(-6, 17), S(-49, 22) };
-const DScore passers[] = { S(20, 6), S(10, 11), S(-2, 26), S(-7, 42), S(20, 111), S(107, 205) };
-const DScore pawn_doubled = S(-21, -27);
-const DScore pawn_passed_blocked = S(4, -46);
-const DScore bishop_pair = S(33, 56);
-const DScore rook_open = S(72, 1);
-const DScore rook_semi_open = S(30, 12);
-const DScore rook_rank78 = S(40, 2);
-const DScore king_shield[] = { S(24, -11), S(12, -16) };
-const DScore materialOrg[] = { S(79, 128), S(421, 292), S(404, 327), S(556, 596), S(1271, 1060), 0 };
-const Score materialMax[] = { 128, 421, 404, 596, 1271, 0 };
-const Score materialVal[] = { 100, 325, 325, 500, 1000, 10000 };
-const int phases[] = { 0, 1, 1, 2, 4, 0 };
-DScore material[6] = {};
 
-inline Piece GetCapturedPiece(Move m) {
+Score Outpost[2][2] = {};
+
+
+inline static Piece GetCapturedPiece(Move m) {
 	return position.Board(m.To());
 }
 
-inline Piece GetMovingPiece(Move m) {
+inline static Piece GetMovingPiece(Move m) {
 	return position.Board(m.From());
 }
 
+static int GetVal(vector<int> v, int i) {
+	if (i >= 0 && i < v.size())
+		return v[i];
+	return 0;
+}
+
+static inline int OutsideFile(File file) {
+	return abs(file * 2 - 7) / 2;
+}
+
+static inline int OutsideRank(Rank rank) {
+	return abs(rank * 2 - 7) / 2;
+}
+
+static inline int Centrality(Rank rank, File file) {
+	return 3 - max(abs(rank * 2 - 7) / 2, abs(file * 2 - 7) / 2);
+}
+
+static int Centrality(Square sq) {
+	return Centrality(RankOf(sq), FileOf(sq));
+}
+
 void InitEval() {
+	Value mg, eg;
 	srand(time(NULL));
 	int elo = options.elo;
 	if (elo < options.eloMin)
@@ -76,14 +111,106 @@ void InitEval() {
 	elo -= options.eloMin;
 	int eloRange = options.eloMax - options.eloMin;
 	int range = 800 - (elo * 800) / eloRange;
-	for (int r = 0; r < 5; r++) {
-		int mg = (-500 * (eloRange - elo) + Mg(materialOrg[r]) * elo) / eloRange;
-		int eg = Eg(materialOrg[r]);
-		material[r] = S(mg, eg);
+	vector<int> split{};
+	splitInt(options.materialDel, split, ' ');
+	for (PieceType pt = PAWN; pt < KING; ++pt) {
+		Value md = materialDelOrg[pt] + GetVal(split, pt);
+		mg = materialVal[pt] + md;
+		mg = (-500 * (eloRange - elo) + mg * elo) / eloRange;
+		eg = materialVal[pt] - md;
+		material[pt] = S(mg, eg);
+		materialMax[pt] = max(mg, eg);
 	}
+	splitInt(options.outsideRank, split, ' ');
+	for (PieceType pt = PAWN; pt < PT_NB; ++pt) {
+		mg = Mg(oursideRankOrg[pt]) + GetVal(split, pt * 2);
+		eg = Eg(oursideRankOrg[pt]) + GetVal(split, pt * 2 + 1);
+		outsideRank[pt] = S(mg, eg);
+	}
+	splitInt(options.outsideFile, split, ' ');
+	for (PieceType pt = PAWN; pt < PT_NB; ++pt) {
+		mg = Mg(outsideFileOrg[pt]) + GetVal(split, pt * 2);
+		eg = Eg(outsideFileOrg[pt]) + GetVal(split, pt * 2 + 1);
+		outsideFile[pt] = S(mg, eg);
+	}
+	splitInt(options.mobility, split, ' ');
+	for (PieceType pt = PAWN; pt < PT_NB; ++pt) {
+		mg = Mg(mobilityOrg[pt]) + GetVal(split, pt * 2);
+		eg = Eg(mobilityOrg[pt]) + GetVal(split, pt * 2 + 1);
+		mobility[pt] = S(mg, eg);
+	}
+	splitInt(options.passed, split, ' ');
+	passedFile = passedFileOrg + GetVal(split, 0);
+	passedRank = passedRankOrg + GetVal(split, 1);
+	passedBlocked = passedBlockedOrg + GetVal(split, 2);
+	passedKU = passedKUOrg + GetVal(split, 3);
+	passedKE = passedKEOrg + GetVal(split, 4);
+
+
+	splitInt(options.pawn, split, ' ');
+	mg = Mg(pawnConnectedOrg) + GetVal(split, 0);
+	eg = Eg(pawnConnectedOrg) + GetVal(split, 1);
+	pawnConnected = S(mg, eg);
+	mg = Mg(pawnDoubledOrg) + GetVal(split, 2);
+	eg = Eg(pawnDoubledOrg) + GetVal(split, 3);
+	pawnDoubled = S(mg, eg);
+	mg = Mg(pawnIsolatedOrg) + GetVal(split, 4);
+	eg = Eg(pawnIsolatedOrg) + GetVal(split, 5);
+	pawnIsolated = S(mg, eg);
+
+	splitInt(options.rook, split, ' ');
+	mg = Mg(rookOpenOrg) + GetVal(split, 0);
+	eg = Eg(rookOpenOrg) + GetVal(split, 1);
+	rookOpen = S(mg, eg);
+	mg = Mg(rookSemiOpenOrg) + GetVal(split, 2);
+	eg = Eg(rookSemiOpenOrg) + GetVal(split, 3);
+	rookSemiOpen = S(mg, eg);
+
+	splitInt(options.outpost, split, ' ');
+	for (int p = 0; p < 2; p++)
+		for (int s = 0; s < 2; s++) {
+			int n = (p * 2 + s) * 2;
+			mg = Mg(OutpostOrg[p][s]) + GetVal(split, n);
+			eg = Eg(OutpostOrg[p][s]) + GetVal(split, n + 1);
+			Outpost[p][s] = S(mg, eg);
+		}
+	splitInt(options.king, split, ' ');
+	mg = Mg(kingShieldOrg) + GetVal(split, 0);
+	eg = Eg(kingShieldOrg) + GetVal(split, 1);
+	kingShield = S(mg, eg);
+
+	splitInt(options.pair, split, ' ');
+	for (int n = 0; n < 3; n++) {
+		mg = Mg(scorePairOrg[n + 1]) + GetVal(split, n * 2);
+		eg = Eg(scorePairOrg[n + 1]) + GetVal(split, n * 2 + 1);
+		scorePair[n + 1] = S(mg, eg);
+	}
+
+	for (PieceType pt = PAWN; pt < PT_NB; ++pt)
+		for (Rank r = RANK_1; r < RANK_NB; ++r)
+			for (File f = FILE_A; f < FILE_NB; ++f)
+			{
+				Square sq = CreateSquare(f, r);
+				Bitboard bbAtack = pt == PAWN ? WHITE_PAWN_ATTACKS[sq] : PSEUDO_LEGAL_ATTACKS[pt][sq];
+				Bonus[pt][r][f] = Score(material[pt]*2);
+				Bonus[pt][r][f] += Score(OutsideRank(r) * outsideRank[pt]);
+				Bonus[pt][r][f] += Score(OutsideFile(f) * outsideFile[pt]);
+				if (pt == PAWN) {
+					Value mg = Mg(mobility[pt]) * OutsideFile(f);
+					Value eg = Eg(mobility[pt]) * pow((r - 1.0) / 5.0, 2.0);
+					Bonus[pt][r][f] += S((mg * 2 + eg) / 3, (mg + eg * 2) / 3);
+					//if (f==3)cout <<mg<<" "<<eg<<" "<< Eg(Bonus[pt][r][f]) << endl;
+				}
+				else
+					Bonus[pt][r][f] += Score(PopCount(PSEUDO_LEGAL_ATTACKS[pt][sq]) * mobility[pt]);
+			}
+	splitInt(options.tempo, split, ' ');
+	mg = Mg(tempoOrg) + GetVal(split, 0);
+	eg = Eg(tempoOrg) + GetVal(split, 1);
+	tempo = S(mg, eg);
 }
 
-Bitboard GetLeastValuablePiece(Bitboard attadef, Color bySide, Piece& piece) {
+static Bitboard GetLeastValuablePiece(Bitboard attadef, Color bySide, Piece& piece) {
 	int maskColor = bySide << 3;
 	for (int n = PAWN; n <= KING; n++) {
 		piece = Piece(maskColor | n);
@@ -94,7 +221,7 @@ Bitboard GetLeastValuablePiece(Bitboard attadef, Color bySide, Piece& piece) {
 	return 0;    // empty set
 }
 
-Score See(Move m) {
+Value See(Move m) {
 	if (!m.IsCapture())
 		return 0;
 	Square sqFrom = m.From();
@@ -102,9 +229,9 @@ Score See(Move m) {
 	MoveFlags flags = m.Flags();
 	Piece  capturedPiece = GetCapturedPiece(m);
 	Piece  capturingPiece = GetMovingPiece(m);
-	Color attacker = color_of(capturingPiece);
-	Score gain[32]{};
-	Score d = 0;
+	Color attacker = ColorOf(capturingPiece);
+	Value gain[32]{};
+	Value d = 0;
 	Bitboard fromSet = SQUARE_BB[sqFrom];
 	Bitboard occ = position.AllPieces();
 	Bitboard sqBB = SQUARE_BB[sqTo];
@@ -117,21 +244,21 @@ Score See(Move m) {
 		| ((Shift(SOUTH_WEST, sqBB) | Shift(SOUTH_EAST, sqBB)) & position.bitboard_of(WHITE_PAWN))
 		| (PSEUDO_LEGAL_ATTACKS[KNIGHT][sqTo] & (position.bitboard_of(WHITE_KNIGHT) | position.bitboard_of(BLACK_KNIGHT)))
 		| (PSEUDO_LEGAL_ATTACKS[KING][sqTo] & (position.bitboard_of(WHITE_KING) | position.bitboard_of(BLACK_KING)));
-	Bitboard attadef = (fixed | ((get_bishop_attacks(sqTo, occ) & bishopsQueens) | (get_rook_attacks(sqTo, occ) & rooksQueens)));
+	Bitboard attadef = (fixed | ((GetBishopAttacks(sqTo, occ) & bishopsQueens) | (GetRookAttacks(sqTo, occ) & rooksQueens)));
 	if (m.IsCapture())
-		gain[d] = materialVal[type_of(capturedPiece)];
+		gain[d] = materialVal[TypeOf(capturedPiece)];
 	else
 		gain[d] = 0;
 	do {
 		d++;
-		attacker = Color(1 - attacker);
-		gain[d] = materialVal[type_of(capturingPiece)] - gain[d - 1];
+		attacker = ~attacker;
+		gain[d] = materialVal[TypeOf(capturingPiece)] - gain[d - 1];
 		if (-gain[d - 1] < 0 && gain[d] < 0)
 			break;    // pruning does not influence the result
 		attadef ^= fromSet;    // reset bit in set to traverse
 		occ ^= fromSet;
 		attadef |=
-			occ & ((get_bishop_attacks(sqTo, occ) & bishopsQueens) | (get_rook_attacks(sqTo, occ) & rooksQueens));
+			occ & ((GetBishopAttacks(sqTo, occ) & bishopsQueens) | (GetRookAttacks(sqTo, occ) & rooksQueens));
 		fromSet = GetLeastValuablePiece(attadef, attacker, capturingPiece);
 	} while (fromSet);
 	while (--d) {
@@ -140,7 +267,7 @@ Score See(Move m) {
 	return gain[0];
 }
 
-string ShowScore(int s) {
+static string ShowScore(Score s) {
 	string result = std::format("({} {})", Mg(s), Eg(s));
 	int len = 16 - result.length();
 	if (len < 0)
@@ -149,29 +276,28 @@ string ShowScore(int s) {
 	return result;
 }
 
-void ShowScore(string name, int sw, int sb) {
+static void ShowScore(string name, Score sw, Score sb) {
 	int len = 16 - name.length();
 	if (len < 0)
 		len = 0;
 	name.append(len, ' ');
-	cout << name << ShowScore(sw) << " " << ShowScore(sb) << " " << ShowScore(sw - sb) << endl;
+	std::cout << name << ShowScore(sw) << " " << ShowScore(sb) << " " << ShowScore(sw - sb) << endl;
 }
 
-Score Eval(Square sq, int type) {
-	const Rank rank = RankOf(sq);
-	const File file = FileOf(sq);
-	const Rank rankR = RelativeRank(position.ColorUs(), rank);
-	Score result = materialVal[type] + rankR;
-	return result + 3 - floor(abs(file - 3.5));
+static Value Eval(Color color, Square sq, PieceType pt) {
+	Rank rank = RelativeRank(color, RankOf(sq));
+	File file = FileOf(sq);
+	return Mg(Bonus[pt][rank][file]);
 }
 
-Score Eval(Move m, Score& see) {
+Value Eval(Move m, Value& see) {
 	Square fr = m.From();
 	Square to = m.To();
 	MoveFlags flags = m.Flags();
-	Piece pfr = position.Board(fr);
-	PieceType frType = type_of(pfr);
-	Score score = -Eval(fr, frType);
+	Piece piece = position.Board(fr);
+	PieceType pt = TypeOf(piece);
+	Color color = ColorOf(piece);
+	Value score = -Eval(color, fr, pt);
 	if (flags & MoveFlags::CAPTURE) {
 		see = See(m);
 		score += see;
@@ -179,150 +305,163 @@ Score Eval(Move m, Score& see) {
 	else
 		see = 0;
 	if (flags & MoveFlags::PROMOTION)
-		frType = (PieceType)(1 + flags & 3);
-	return score + Eval(to, frType);
+		pt = (PieceType)(1 + flags & 3);
+	return score + Eval(color, to, pt);
 }
 
-int Centrality(Rank rank, File file) {
-	return 4 - max(abs(rank * 2 - 7) / 2, abs(file * 2 - 7) / 2);
-}
-
-int Centrality(Square sq) {
-	return Centrality(RankOf(sq), FileOf(sq));
-}
-
-SEval Eval(Position& pos, Color color, Square kpUs, Square kpEn) {
-	SEval result;
+static void Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
+	int cw = 0;
+	Color color = esUs.color;
 	int maskColUs = color ? 0b1000 : 0;
 	int maskColEn = color ? 0 : 0b1000;
-	Bitboard pawnsUs = pos.piece_bb[maskColUs];
-	Bitboard pawnsEn = pos.piece_bb[maskColEn];
-	const Bitboard protected_by_pawns = Shift(RelativeDir(color, NORTH_WEST), pawnsUs) | Shift(RelativeDir(color, NORTH_EAST), pawnsUs);
-
-	// Bishop pair
-	Bitboard bbBishop = pos.piece_bb[BISHOP | maskColUs];
-	if ((bbBishop & bbLight) && (bbBishop & bbDark))
-		result.scoreBishopPair += bishop_pair;
-	// For each piece type
-	for (int p = 0; p < 6; ++p) {
-		Bitboard copy = pos.piece_bb[p | maskColUs];
+	Bitboard bbAll = pos.AllPieces();
+	Bitboard bbPawnsUs = pos.piece_bb[maskColUs];
+	Bitboard bbPawnsEn = pos.piece_bb[maskColEn];
+	Direction north = RelativeDir(color, NORTH);
+	Direction south = RelativeDir(color, SOUTH);
+	const Bitboard bbProtected = PawnAttacks(color, bbPawnsUs);
+	const Bitboard bbAtacked = PawnAttacks(~color, bbPawnsEn);
+	Bitboard bbConnected = bbProtected | Shift(south, bbProtected);
+	bbConnected |= Shift(south, bbConnected);
+	const Bitboard bbSpan = Span(~color, bbAtacked);
+	const Bitboard bbOutpostRanks = color ? Rank5BB | Rank4BB | Rank3BB : Rank4BB | Rank5BB | Rank6BB;
+	for (PieceType pt = PAWN; pt < PT_NB; ++pt) {
+		Bitboard copy = pos.piece_bb[pt | maskColUs];
 		while (copy) {
-			phase += phases[p];
+			esUs.piece[pt]++;
+			phase += phases[pt];
+			cw += chance[pt];
 			const Square sq = pop_lsb(&copy);
-			//const Rank rank = ;
-			const Rank rank = RelativeRank(color, RankOf(sq));
+			const Rank r = RankOf(sq);
+			const Rank rank = RelativeRank(color, r);
 			const File file = FileOf(sq);
-			//const int centrality = (7 - abs(7 - rankR - file) - abs(rankR - file)) / 2;
-			//const int centrality = ;
-			// Material
-			result.scorePiece[p] += material[p];
+			esUs.scorePiece[pt] += Bonus[pt][rank][file];
+			const Bitboard bbPiece = 1ULL << sq;
 
-			// Centrality
-			result.scorePiece[p] += Centrality(rank, file) * centralities[p];
-
-			// Closeness to outside files
-			result.scorePiece[p] += abs(file - 3) * outside_files[p];
-
-			// Quadrant PSTs
-			result.scorePiece[p] += psts[p][(rank / 4) * 2 + file / 4];
-
-			// Pawn protection
-			const Bitboard piece_bb = 1ULL << sq;
-			if (piece_bb & protected_by_pawns)
-				result.scorePiece[p] += pawn_protection[p];
-
-			if (p == PAWN) {
-				// Passed pawns
-				Bitboard blockers = color ? 0x8080808080808080ULL >> (63 - sq) : 0x0101010101010101ULL << sq;
-				blockers = Shift(RelativeDir(color, NORTH_WEST), blockers) | Shift(RelativeDir(color, NORTH_EAST), blockers);
-				//if(!c)print_bitboard(blockers);
-				if (!(blockers & pawnsEn)) {
-					result.scorePawnPassed += passers[rank - 1];
-
-					// Blocked passed pawns
-					if (Shift(RelativeDir(color, NORTH), piece_bb) & pos.AllPieces(~color))
-						result.scorePawnBlocked += pawn_passed_blocked;
-					// King defense/attack
-					// king distance to square in front of passer
-					int i1 = abs(((int)kpUs / 8) - (rank + 1));
-					int i2 = abs(((int)kpUs % 8) - file);
-					result.scorePawnPassed -= S(0, 1) * (rank - 1) * max(i1, i2);
-					i1 = abs(((int)kpEn / 8) - (rank + 1));
-					i2 = abs(((int)kpEn % 8) - file);
-					result.scorePawnPassed += S(0, 3) * (rank - 1) * max(i1, i2);
-					//cout << SQSTR[sq] << " mg " << Mg(score - oldScore) << endl;
+			if (pt == PAWN) {
+				//passed pawn
+				if (!(bbPassedPawnMask[color][sq] & bbPawnsEn)) {
+					Value v = OutsideFile(file) * passedFile;
+					v+= passedRank * pow((rank - 1.0) / 5.0, 2.0);
+					if (Shift(RelativeDir(color, NORTH), bbPiece) & pos.AllPieces(~color))
+						v += passedBlocked;
+					v += passedKU * (rank - 1) * Distance(esUs.king, sq);
+					v += passedKE * (rank - 1) * Distance(esEn.king, sq);
+					esUs.scorePawnPassed += S(0, v);
 				}
-
-				// Doubled pawns
-				if ((Shift(RelativeDir(color, NORTH), piece_bb) | Shift(RelativeDir(color, NORTH), Shift(RelativeDir(color, NORTH), piece_bb))) & pawnsUs)
-					result.scorePawnDoubled += pawn_doubled;
+				if (bbPiece & bbConnected)
+					esUs.scorePawnConnected += Score(pawnConnected * (rank - 1));
+				else {
+					if (bbPawnsUs & bbForwardFiles[color][sq])
+						esUs.scorePawnDoubled += pawnDoubled;
+					if (bbPawnsUs & bbAdjacentFiles[file])
+						esUs.scorePawnIsolated += pawnIsolated;
+				}
 			}
-			else if (p == ROOK) {
-				// Rook on open or semi-open files
-				const Bitboard file_bb = 0x101010101010101ULL << file;
-				if (!(file_bb & pawnsUs)) {
-					if (!(file_bb & pawnsEn))
-						result.scorePiece[p] += rook_open;
-					else
-						result.scorePiece[p] += rook_semi_open;
-				}
-
-				// Rook on 7th or 8th rank
-				if (rank >= 6)result.scorePiece[p] += rook_rank78;
+			else if (pt == KING) {
+				esUs.king = sq;
+				Bitboard bbShield = Shift(north, bbPiece);
+				bbShield |= Shift(EAST, bbShield) | Shift(WEST, bbShield);
+				Bitboard bbShield2 = bbShield | Shift(north, bbShield);
+				esUs.scorePiece[pt] += Score((SparsePopCount(bbShield & bbPawnsUs) + SparsePopCount(bbShield2 & bbPawnsUs)) * kingShield);
 			}
-			else if (p == KING)
-				if (piece_bb & (color ? shelterKingB : shelterKingW)) {
-					const Bitboard shield = file < 3 ? (color ? shelterKB : shelterKW) : (color ? shelterQB : shelterQW);
-					result.scoreKingShelter += sparse_pop_count(shield & pawnsUs) * king_shield[0];
-					result.scoreKingShelter += sparse_pop_count(Shift(RelativeDir(color, NORTH), shield) & pawnsUs) * king_shield[1];
-					result.scoreKingShelter -= !(piece_bb & (color ? shelterSB : shelterSW)) * king_shield[0];
+			else {
+				esUs.scoreMobility += Score(PopCount(attacks(pt, sq, bbAll) & ~bbAtacked) * mobility[pt]);
+				if (pt == ROOK) {
+					const Bitboard bbFile = 0x101010101010101ULL << file;
+					if (!(bbFile & bbPawnsUs)) {
+						if (!(bbFile & bbPawnsEn))
+							esUs.scorePiece[pt] += rookOpen;
+						else
+							esUs.scorePiece[pt] += rookSemiOpen;
+					}
 				}
-				else result.scoreKingShelter -= !(piece_bb & (color ? shelterSB : shelterSW)) * king_shield[0];
+				else  if ((pt == KNIGHT) || (pt == BISHOP)) {
+					Bitboard bbOutpost = (~bbSpan & bbOutpostRanks);
+					if (bbOutpost & bbPiece)
+						esUs.scorePiece[pt] += Score(Outpost[pt == BISHOP][bbProtected && bbPiece] * 2);
+					else if (bbOutpost & attacks((PieceType)pt, sq, pos.AllPieces()))
+						esUs.scorePiece[pt] += Outpost[pt == BISHOP][bbProtected && bbPiece];
+				}
+			}
 		}
 	}
-	return result;
+	for (PieceType pt = KNIGHT; pt < QUEEN; ++pt)
+		if (esUs.piece[pt] > 1)
+			esUs.scorePair += scorePair[pt];
+	esUs.chance = cw > 2;
+	if (esUs.chance)
+		esUs.score += S(100, 100);
 }
 
-DScore ScoreSe(SEval se) {
-	DScore result = se.scorePawnPassed + se.scorePawnBlocked + se.scorePawnDoubled + se.scoreBishopPair + se.scoreKingShelter;
-	for (int s : se.scorePiece)
+
+static Score ScoreSe(SEvalSide es) {
+	Score result = es.score + es.scorePawnPassed + es.scorePawnConnected + es.scorePawnDoubled + es.scorePawnIsolated + es.scoreMobility + es.scorePair;
+	for (Score s : es.scorePiece)
 		result += s;
 	return result;
 }
 
-Score ShowEval() {
-	position.SetFen("1b1rr1k1/3q1pp1/8/NP1p1b1p/1B1Pp1n1/PQR1P1P1/4BP1P/5RK1 w - -0 1");
+Value ShowEval() {
+	position.SetFen("1b1rr1k1/3q1pp1/8/NP1pPb1p/1B1Pp1n1/PQR1P1P1/2n1B1nP/5RK1 b - - 1 1");
+	//position.SetFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
+	//position.SetFen("3rr1k1/1b1q1pb1/8/NP1p3p/1B1Pp1n1/PQR1P1P1/1B3P1P/5RK1 b - - 1 1");
+	//position.SetFen("8/8/6K1/8/4k3/8/2p5/8 b - - 0 46");
 	phase = 0;
-	Square kpW = bsf(position.piece_bb[WHITE_KING]);
-	Square kpB = bsf(position.piece_bb[BLACK_KING]);
-	SEval seW = Eval(position, WHITE, kpW, kpB);
-	SEval seB = Eval(position, BLACK, kpB, kpW);
+	SEvalSide esW = {};
+	SEvalSide esB = {};
+	esW.color = WHITE;
+	esB.color = BLACK;
+	esW.king = bsf(position.piece_bb[WHITE_KING]);
+	esB.king = bsf(position.piece_bb[BLACK_KING]);
+	Eval(position, esW, esB);
+	Eval(position, esB, esW);
+	Picker picker;
+	position.MoveList(position.ColorUs(), picker.mList, picker.count);
+	picker.Fill();
+	picker.Sort();
+	std::cout << "moves:" << endl;
+	for (int n = 0; n < picker.count; n++) {
+		PickerE pe = picker.pList[n];
+		std::cout << pe.move.ToUci() << " " << pe.see << " " << pe.score << endl;
+	}
 	std::cout << position << std::endl;
-	ShowScore("pawn", seW.scorePiece[0], seB.scorePiece[0]);
-	ShowScore("pawn passed", seW.scorePawnPassed, seB.scorePawnPassed);
-	ShowScore("pawn blocked", seW.scorePawnBlocked, seB.scorePawnBlocked);
-	ShowScore("pawn doubled", seW.scorePawnDoubled, seB.scorePawnDoubled);
-	ShowScore("knight", seW.scorePiece[1], seB.scorePiece[1]);
-	ShowScore("bishop", seW.scorePiece[2], seB.scorePiece[2]);
-	ShowScore("bishop pair", seW.scoreBishopPair, seB.scoreBishopPair);
-	ShowScore("rook", seW.scorePiece[3], seB.scorePiece[3]);
-	ShowScore("queen", seW.scorePiece[4], seB.scorePiece[4]);
-	ShowScore("king", seW.scorePiece[5], seB.scorePiece[5]);
-	ShowScore("king shelter", seW.scoreKingShelter, seB.scoreKingShelter);
-	ShowScore("total", ScoreSe(seW), ScoreSe(seB));
-	cout << "phase " << phase << endl;
-	DScore score = S(10, 10) + ScoreSe(seW) - ScoreSe(seB);
-	score = Pg(score);
-	return position.ColorUs() ? -score : score;
+	ShowScore("pawn connected", esW.scorePawnConnected, esB.scorePawnConnected);
+	ShowScore("pawn isolated", esW.scorePawnIsolated, esB.scorePawnIsolated);
+	ShowScore("pawn doubled", esW.scorePawnDoubled, esB.scorePawnDoubled);
+	ShowScore("pawn passed", esW.scorePawnPassed, esB.scorePawnPassed);
+	ShowScore("pawn", esW.scorePiece[0], esB.scorePiece[0]);
+	ShowScore("knight", esW.scorePiece[1], esB.scorePiece[1]);
+	ShowScore("bishop", esW.scorePiece[2], esB.scorePiece[2]);
+	ShowScore("rook", esW.scorePiece[3], esB.scorePiece[3]);
+	ShowScore("queen", esW.scorePiece[4], esB.scorePiece[4]);
+	ShowScore("king", esW.scorePiece[5], esB.scorePiece[5]);
+	ShowScore("mobility", esW.scoreMobility, esB.scoreMobility);
+	ShowScore("pair", esW.scorePair, esB.scorePair);
+	ShowScore("total", ScoreSe(esW), ScoreSe(esB));
+	std::cout << "phase " << phase << endl;
+	if (!esW.chance && !esB.chance)
+		return 0;
+	Score score = ScoreSe(esW) - ScoreSe(esB);
+	score += position.ColorUs() ? -tempo : tempo;
+	Value v = (Pg(score) * (100 - position.move50)) / 200;
+	return position.ColorUs() ? -v : v;
 }
 
-Score Eval() {
+Value Eval() {
 	phase = 0;
-	Square kpW = bsf(position.piece_bb[WHITE_KING]);
-	Square kpB = bsf(position.piece_bb[BLACK_KING]);
-	SEval seW = Eval(position, WHITE, kpW, kpB);
-	SEval seB = Eval(position, BLACK, kpB, kpW);
-	DScore score = S(10, 10) + ScoreSe(seW) - ScoreSe(seB);
-	score = Pg(score);
-	return position.ColorUs() ? -score : score;
+	SEvalSide esW = {};
+	SEvalSide esB = {};
+	esW.color = WHITE;
+	esB.color = BLACK;
+	esW.king = bsf(position.piece_bb[WHITE_KING]);
+	esB.king = bsf(position.piece_bb[BLACK_KING]);
+	Eval(position, esW, esB);
+	Eval(position, esB, esW);
+	if (!esW.chance && !esB.chance)
+		return 0;
+	Score score = ScoreSe(esW) - ScoreSe(esB);
+	score += position.ColorUs() ? -tempo : tempo;
+	Value v = (Pg(score) * (100 - position.move50)) / 200;
+	return position.ColorUs() ? -v : v;
 }

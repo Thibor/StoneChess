@@ -7,8 +7,8 @@
 
 enum RecType :U8 {
 	NODE_PV = 0,
-	NODE_CUT = 1,
-	NODE_ALL = 2
+	NODE_BETA = 1,
+	NODE_ALPHA = 2
 };
 
 struct CRec {
@@ -32,17 +32,17 @@ struct CRec {
 class CTranspositionTable
 {
 	U64 used;
-	U64 size;
+	U64 records;
 	U64 mask;
-	CRec* tt;
+	CRec* rt;
 public:
 	U16 age;
 	CTranspositionTable();
 	~CTranspositionTable();
 	void Clear();
-	int Permill();
+	int Permill() const;
 	void Resize(U64 mbSize);
-	bool SetRec(Hash hash, Score score, U16 move, RecType type, Depth depth);
+	bool SetRec(Hash hash, Value score, U16 move, RecType type, Depth depth);
 	CRec* GetRec(Hash hash);
 
 };

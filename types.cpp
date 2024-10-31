@@ -68,14 +68,21 @@ const Bitboard SQUARE_BB[65] = {
 	0x0
 };
 
-//Prints the bitboard, little-endian format
-void PrintBitboard(Bitboard b) {
+//Prints the bitboard
+void PrintBitboard(Bitboard bb) {
+	const char* s = "   +---+---+---+---+---+---+---+---+\n";
+	const char* t = "     A   B   C   D   E   F   G   H\n";
+	cout << t;
 	for (int i = 56; i >= 0; i -= 8) {
-		for (int j = 0; j < 8; j++)
-			std::cout << (char)(((b >> (i + j)) & 1) + '0') << " ";
-		std::cout << "\n";
+		cout << s << " " << i / 8 + 1 << " ";
+		for (int x = 0; x < 8; x++) {
+			const char* c = SQUARE_BB[i + x] & bb ? "x" : " ";
+			cout << "| " << c << " ";
+		}
+		cout << "| " << i / 8 + 1 << endl;
 	}
-	std::cout << "\n";
+	cout << s;
+	cout << t << endl;
 }
 
 const Bitboard k1 = 0x5555555555555555;
@@ -84,7 +91,7 @@ const Bitboard k4 = 0x0f0f0f0f0f0f0f0f;
 const Bitboard kf = 0x0101010101010101;
 
 //Returns number of set bits in the bitboard
-inline int pop_count(Bitboard x) {
+inline int PopCount(Bitboard x) {
 	x = x - ((x >> 1) & k1);
 	x = (x & k2) + ((x >> 2) & k2);
 	x = (x + (x >> 4)) & k4;
@@ -93,7 +100,7 @@ inline int pop_count(Bitboard x) {
 }
 
 //Returns number of set bits in the bitboard. Faster than pop_count(x) when the bitboard has few set bits
-inline int sparse_pop_count(Bitboard x) {
+inline int SparsePopCount(Bitboard x) {
 	int count = 0;
 	while (x) {
 		count++;
@@ -151,8 +158,8 @@ std::ostream& operator<<(std::ostream& os, Move m) {
 Stack stack[128];
 
 Move::Move(const std::string& move) {
-	Square fr = create_square(File(move[0] - 'a'), Rank(move[1] - '1'));
-	Square to = create_square(File(move[2] - 'a'), Rank(move[3] - '1'));
+	Square fr = CreateSquare(File(move[0] - 'a'), Rank(move[1] - '1'));
+	Square to = CreateSquare(File(move[2] - 'a'), Rank(move[3] - '1'));
 	MoveFlags mf = MoveFlags::QUIET;
 	if (move.length() > 4)
 		if (move[5] == 'q')
@@ -166,7 +173,7 @@ Move::Move(const std::string& move) {
 	this->move = (mf << 12) | (fr << 6) | to;
 }
 
-string Move::ToUci() {
+string Move::ToUci() const {
 	string uci = SQSTR[From()] + SQSTR[To()];
 	if (Flags() & PROMOTION)
 		return uci + MOVE_TYPESTR_UCI[Flags() & 7];

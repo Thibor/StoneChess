@@ -3,6 +3,7 @@
 #include "types.h"
 #include "uci.h"
 
+SOptions options;
 CTranspositionTable tt;
 
 CTranspositionTable::CTranspositionTable() {
@@ -10,30 +11,30 @@ CTranspositionTable::CTranspositionTable() {
 }
 
 CTranspositionTable::~CTranspositionTable() {
-	delete tt;
+	delete rt;
 }
 
 void CTranspositionTable::Clear() {
 	used = 0;
-	std::memset(tt, 0, sizeof(CRec) * size);
+	std::memset(rt, 0, sizeof(CRec) * records);
 }
 
-CRec* CTranspositionTable:: GetRec(Hash hash) {
+CRec* CTranspositionTable::GetRec(Hash hash) {
 	U64 index = hash & mask;
-	CRec* enP = &tt[index];
+	CRec* enP = &rt[index];
 	if (enP->hash == hash)
 		return enP;
 	return nullptr;
 }
 
-int CTranspositionTable::Permill()
+int CTranspositionTable::Permill() const
 {
-	return (int)(used * 1000ul / size);
+	return (int)(used * 1000ul / records);
 }
 
-bool CTranspositionTable::SetRec(Hash hash, Score score, U16 move, RecType type, Depth depth) {
+bool CTranspositionTable::SetRec(Hash hash, Value score, U16 move, RecType type, Depth depth) {
 	U64 index = hash & mask;
-	CRec* enP = &tt[index];
+	CRec* enP = &rt[index];
 	if (!enP->hash) {
 		enP->SetRec(hash, score, move, type, depth, age);
 		used++;
@@ -41,8 +42,10 @@ bool CTranspositionTable::SetRec(Hash hash, Score score, U16 move, RecType type,
 	}
 	else if (
 		enP->age != age
+		|| !enP->move
 		|| type == NODE_PV
 		|| (enP->type != NODE_PV && enP->depth <= depth)) {
+		if (!move)move = enP->move;
 		enP->SetRec(hash, score, move, type, depth, age);
 		return true;
 	}
@@ -51,12 +54,14 @@ bool CTranspositionTable::SetRec(Hash hash, Score score, U16 move, RecType type,
 
 void CTranspositionTable::Resize(U64 mbSize)
 {
-	size = 1;
-	while (size <= mbSize)
-		size <<= 1;
-	size = static_cast<uint64_t>(size << 20) / sizeof(CRec);
-	mask = size - 1;
-	free(tt);
-	tt = (CRec*)calloc(size, sizeof(CRec));
+	if (mbSize < 1)
+		mbSize = 1;
+	records = 1;
+	U64 recSize = sizeof(CRec);
+	while (records * recSize <= mbSize * 1000000)
+		records <<= 1;
+	mask = records - 1;
+	free(rt);
+	rt = (CRec*)calloc(records, recSize);
 	Clear();
 }
