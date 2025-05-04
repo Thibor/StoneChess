@@ -1,10 +1,10 @@
 #include "position.h"
 
-#include "tables.h"
-
 #include <sstream>
 
-Position position;
+#include "tables.h"
+
+Position g_pos;
 
 U64 zobrist::hashColor;
 //Zobrist keys for each piece and each square
@@ -21,27 +21,61 @@ void zobrist::InitialiseZobristKeys() {
 }
 
 //Pretty-prints the position (including FEN and hash key)
-std::ostream& operator << (std::ostream& os, const Position& p) {
+void Position::PrintBoard() const {
 	const char* s = "   +---+---+---+---+---+---+---+---+\n";
 	const char* t = "     A   B   C   D   E   F   G   H\n";
-	os << t;
+	cout << t;
 	for (int i = 56; i >= 0; i -= 8) {
-		os << s << " " << i / 8 + 1 << " ";
+		cout << s << " " << i / 8 + 1 << " ";
 		for (int j = 0; j < 8; j++) {
-			Piece piece = p.board[i + j];
-			os << "| " << PIECE_STR[piece] << " ";
+			Piece piece = board[i + j];
+			cout << "| " << PIECE_STR[piece] << " ";
 		}
-		os << "| " << i / 8 + 1 << endl;
+		cout << "| " << i / 8 + 1 << endl;
 	}
-	os << s;
-	os << t << endl;
-	os << "FEN: " << p.GetFen() << endl;
-	os << "Hash: 0x" << std::hex << p.hash << std::dec << endl;
-	os << "Side: " << (p.side_to_play == WHITE ? "w" : "b") << endl;
-	return os;
+	cout << s;
+	cout << t << endl;
+	cout << "FEN: " << GetFen() << endl;
+	cout << "Hash: 0x" << std::hex << hash << std::dec << endl;
+	cout << "Side: " << (color == WHITE ? "w" : "b") << endl;
 }
 
-constexpr Position::Position() : piece_bb{ 0 }, side_to_play(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0) {
+//Adds, to the move pointer all moves of the form (from, s), where s is a square in the bitboard to
+template<MoveFlags F = QUIET>
+inline Move* make(Square from, Bitboard to, Move* list) {
+	while (to) *list++ = Move(from, pop_lsb(&to), F);
+	return list;
+}
+
+//Adds, to the move pointer all quiet promotion moves of the form (from, s), where s is a square in the bitboard to
+template<>
+inline Move* make<PROMOTIONS>(Square from, Bitboard b, Move* list) {
+	Square p;
+	while (b) {
+		p = pop_lsb(&b);
+		*list++ = Move(from, p, PR_KNIGHT);
+		*list++ = Move(from, p, PR_BISHOP);
+		*list++ = Move(from, p, PR_ROOK);
+		*list++ = Move(from, p, PR_QUEEN);
+	}
+	return list;
+}
+
+//Adds, to the move pointer all capture promotion moves of the form (from, s), where s is a square in the bitboard to
+template<>
+inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard b, Move* list) {
+	Square p;
+	while (b) {
+		p = pop_lsb(&b);
+		*list++ = Move(from, p, PC_KNIGHT);
+		*list++ = Move(from, p, PC_BISHOP);
+		*list++ = Move(from, p, PC_ROOK);
+		*list++ = Move(from, p, PC_QUEEN);
+	}
+	return list;
+}
+
+constexpr Position::Position() : piece_bb{ 0 }, color(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0) {
 	//Sets all squares on the board as empty
 	for (int i = 0; i < 64; i++)
 		board[i] = NO_PIECE;
@@ -49,7 +83,7 @@ constexpr Position::Position() : piece_bb{ 0 }, side_to_play(WHITE), historyInde
 }
 
 void Position::Clear() {
-	side_to_play = WHITE;
+	color = WHITE;
 	historyIndex = 0;
 	hash = 0;
 	pinned = 0;
@@ -73,19 +107,19 @@ void Position::MoveList(Move* list, int& count, bool quiet) {
 
 bool Position::IsLegal(Move move) {
 	Move list[218];
-	GenerateMoves(side_to_play, list);
+	GenerateMoves(color, list);
 	for (Move m : list)
 		if (m == move)
 			return true;
 	return false;
 }
 
-bool Position::InCheck(Color c) {
+/*bool Position::InCheck(Color c) const {
 	return AttackersFrom(~c, bsf(bitboard_of(c, KING)), AllPieces());
-}
+}*/
 
-bool Position::InCheck() {
-	return AttackersFrom(~side_to_play, bsf(bitboard_of(side_to_play, KING)), AllPieces());
+bool Position::InCheck() const {
+	return AttackersFrom(~color, bsf(bitboard_of(color, KING)), AllPieces());
 }
 
 inline void Position::PutPiece(Piece pc, Square s) {
@@ -94,13 +128,22 @@ inline void Position::PutPiece(Piece pc, Square s) {
 	hash ^= zobrist::zobrist_table[pc][s];
 }
 
+/*void Position::Phase() {
+	phase= PopCount(piece_bb[WHITE_KNIGHT] | piece_bb[BLACK_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[BLACK_BISHOP]) +
+		PopCount(piece_bb[WHITE_ROOK] | piece_bb[BLACK_ROOK]) * 2 +
+		SparsePopCount(piece_bb[WHITE_QUEEN] | piece_bb[BLACK_QUEEN]) * 4;
+	if (phase > 24)
+		phase = 24;
+}*/
+
 inline void Position::RemovePiece(Square s) {
-	hash ^= zobrist::zobrist_table[board[s]][s];
+	Piece pc = board[s];
+	hash ^= zobrist::zobrist_table[pc][s];
 	piece_bb[board[s]] &= ~SQUARE_BB[s];
 	board[s] = NO_PIECE;
 }
 
-bool Position::IsRepetition() {
+bool Position::IsRepetition() const{
 	for (int n = historyIndex - 2; n >= historyIndex - move50; n -= 2)
 		if (n >= 0)
 			if (history[n].hash == hash)
@@ -110,7 +153,7 @@ bool Position::IsRepetition() {
 
 void Position::MakeNull() {
 	hash ^= zobrist::hashColor;
-	side_to_play = ~side_to_play;
+	color = ~color;
 	++historyIndex;
 	history[historyIndex] = UndoInfo(history[historyIndex - 1]);
 	history[historyIndex].epsq = SQ_NONE;
@@ -118,15 +161,17 @@ void Position::MakeNull() {
 
 void Position::UnmakeNull() {
 	hash ^= zobrist::hashColor;
-	side_to_play = ~side_to_play;
+	color = ~color;
 	--historyIndex;
 }
 
 //Plays a move in the position
 void Position::MakeMove(const Move m) {
+	history[historyIndex].move50 = move50;
+	history[historyIndex].hash = hash;
 	hash ^= zobrist::hashColor;
-	Color c = side_to_play;
-	side_to_play = ~side_to_play;
+	Color c = color;
+	color = ~color;
 	++historyIndex;
 	history[historyIndex] = UndoInfo(history[historyIndex - 1]);
 	Square fr = m.From();
@@ -216,15 +261,13 @@ void Position::MakeMove(const Move m) {
 		MovePiece(m.From(), m.To());
 		break;
 	}
-	history[historyIndex].hash = hash;
-	history[historyIndex].move50 = move50;
 }
 
 //Undos a move in the current position, rolling it back to the previous position
 void Position::UnmakeMove(const Move m) {
-	hash ^= zobrist::hashColor;
-	side_to_play = ~side_to_play;
-	Color c = side_to_play;
+	//hash ^= zobrist::hashColor;
+	color = ~color;
+	Color c = color;
 	MoveFlags type = m.Flags();
 	switch (type) {
 	case QUIET:
@@ -279,6 +322,7 @@ void Position::UnmakeMove(const Move m) {
 	}
 	--historyIndex;
 	move50 = history[historyIndex].move50;
+	hash = history[historyIndex].hash;
 }
 
 void Position::SetFen(const std::string& fen) {
@@ -297,7 +341,7 @@ void Position::SetFen(const std::string& fen) {
 	unsigned char token;
 
 	ss >> token;
-	side_to_play = token == 'w' ? WHITE : BLACK;
+	color = token == 'w' ? WHITE : BLACK;
 
 	history[historyIndex].entry = ALL_CASTLING_MASK;
 	while (ss >> token && !isspace(token)) {
@@ -316,6 +360,7 @@ void Position::SetFen(const std::string& fen) {
 			break;
 		}
 	}
+	//cout << "phase= " << phase << endl;
 }
 
 //Returns the FEN (Forsyth-Edwards Notation) representation of the position
@@ -339,7 +384,7 @@ std::string Position::GetFen() const {
 		if (i > 0) fen << '/';
 	}
 
-	fen << (side_to_play == WHITE ? " w " : " b ")
+	fen << (color == WHITE ? " w " : " b ")
 		<< (history[historyIndex].entry & WHITE_OO_MASK ? "" : "K")
 		<< (history[historyIndex].entry & WHITE_OOO_MASK ? "" : "Q")
 		<< (history[historyIndex].entry & BLACK_OO_MASK ? "" : "k")
@@ -569,7 +614,8 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 			}
 		}
 
-		if (quiet) {
+		if (quiet) 
+		{
 			//Only add castling if:
 			//1. The king and the rook have both not moved
 			//2. No piece is attacking between the the rook and the king
@@ -661,7 +707,8 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 	//b1 contains non-pinned pawns which are not on the last rank
 	b1 = bitboard_of(Us, PAWN) & not_pinned & ~MASK_RANK[RelativeRank(Us, RANK_7)];
 
-	if (quiet) {
+	if (quiet) 
+	{
 		//Single pawn pushes
 		b2 = Shift(RelativeDir(Us, NORTH), b1) & ~all;
 
@@ -740,7 +787,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 //Returns a bitboard containing all pieces attacking a particluar square
 inline Bitboard Position::Attackers(Square s) const {
 	Bitboard occ = AllPieces();
-	return side_to_play == BLACK ?
+	return color == BLACK ?
 		(PawnAttacks(BLACK, s) & piece_bb[WHITE_PAWN]) |
 		(attacks<KNIGHT>(s, occ) & piece_bb[WHITE_KNIGHT]) |
 		(attacks<BISHOP>(s, occ) & (piece_bb[WHITE_BISHOP] | piece_bb[WHITE_QUEEN])) |
@@ -775,6 +822,15 @@ inline Bitboard Position::OrthogonalSliders(Color c) const {
 	return c == WHITE ? piece_bb[WHITE_ROOK] | piece_bb[WHITE_QUEEN] :
 		piece_bb[BLACK_ROOK] | piece_bb[BLACK_QUEEN];
 }
+
+/*void Position::Phase() {
+	phase= PopCount(piece_bb[WHITE_KNIGHT] | piece_bb[BLACK_KNIGHT] | piece_bb[WHITE_BISHOP] | piece_bb[BLACK_BISHOP]) +
+		PopCount(piece_bb[WHITE_ROOK] | piece_bb[BLACK_ROOK]) * 2 +
+		SparsePopCount(piece_bb[WHITE_QUEEN] | piece_bb[BLACK_QUEEN]) * 4;
+	if (phase > 24)
+		phase = 24;
+}*/
+
 
 /*template<Color C>
 Bitboard Position::pinned(Square s, Bitboard us, Bitboard occ) const {

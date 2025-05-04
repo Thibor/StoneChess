@@ -1,7 +1,5 @@
 #include "program.h"
 
-#include "input.h"
-
 using namespace std;
 
 #define MONTH (\
@@ -18,9 +16,10 @@ using namespace std;
 #define DAY (std::string(1,(__DATE__[4] == ' ' ?  '0' : (__DATE__[4]))) + (__DATE__[5]))
 #define YEAR ((__DATE__[7]-'0') * 1000 + (__DATE__[8]-'0') * 100 + (__DATE__[9]-'0') * 10 + (__DATE__[10]-'0') * 1)
 
+string engineName = "StoneChess";
 
-void PrintWelcome() {
-	cout << "StoneChess ver. " << YEAR << "-" << MONTH << "-" << DAY << endl;
+static void PrintWelcome() {
+	cout << engineName<<" " << YEAR << "-" << MONTH << "-" << DAY << endl;
 }
 
 //Displays a summary
@@ -28,11 +27,11 @@ void PrintSummary(uint64_t time, uint64_t nodes) {
 	if (time < 1)
 		time = 1;
 	uint64_t nps = (nodes * 1000) / time;
-	printf("-----------------------------\n");
+	cout << "-----------------------------" << endl;
 	cout << "Time        : " << thousandSeparator(time) << endl;
 	cout << "Nodes       : " << thousandSeparator(nodes) << endl;
 	cout << "Nps         : " << thousandSeparator(nps) << endl;
-	printf("-----------------------------\n");
+	cout << "-----------------------------" << endl;
 }
 
 int main() {
@@ -42,6 +41,6 @@ int main() {
 	InitSearch();
 	initialise_all_databases();
 	zobrist::InitialiseZobristKeys();
-	position.SetFen();
+	g_pos.SetFen();
 	UciLoop();
 }

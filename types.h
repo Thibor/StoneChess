@@ -21,13 +21,9 @@ using namespace std;
 #define S8  signed __int8
 #define Bitboard unsigned __int64
 #define Hash unsigned __int64
-#define Value signed __int16
-#define Depth signed __int16
-//#define Score signed __int32
 
-//constexpr int MAX_PLY = 128;
+constexpr int MAX_PLY = 100;
 #define MOVE_NONE 0
-#define VALUE_ZERO 0
 
 enum Square : int {
 	SQ_A1, SQ_B1, SQ_C1, SQ_D1, SQ_E1, SQ_F1, SQ_G1, SQ_H1,
@@ -64,7 +60,7 @@ enum Direction : int {
 
 enum Color : int { WHITE, BLACK, COLOR_NB };
 
-enum NodeTypes {NTPV, NTNONPV};
+enum NodeType { PV, NONPV };
 
 //The type of the move
 enum MoveFlags : int {
@@ -79,69 +75,137 @@ enum MoveFlags : int {
 	PC_KNIGHT = 0b1100, PC_BISHOP = 0b1101, PC_ROOK = 0b1110, PC_QUEEN = 0b1111
 };
 
-/*enum Value : S16 {
-	VALUE_ZERO = 0,
-	VALUE_DRAW = 0,
+enum Value : int {
+	VALUE_NONE = 0,
+	VALUE_ZERO=0,
 	VALUE_KNOWN_WIN = 10000,
 	VALUE_MATE = 32000,
 	VALUE_INFINITE = 32001,
-	VALUE_NONE = 32002,
+	VALUE_MATE_IN = VALUE_MATE - 2 * MAX_PLY,
+	VALUE_MATED_IN = -VALUE_MATE + 2 * MAX_PLY
+};
 
-	//VALUE_MATE_IN_MAX_PLY = VALUE_MATE - 2 * MAX_PLY,
-	//VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY,
+enum Score : int { 
+	SCORE_ZERO
+};
 
-	PawnValueMg = 136, PawnValueEg = 208,
-	KnightValueMg = 782, KnightValueEg = 865,
-	BishopValueMg = 830, BishopValueEg = 918,
-	RookValueMg = 1289, RookValueEg = 1378,
-	QueenValueMg = 2529, QueenValueEg = 2687,
-
-	MidgameLimit = 15258, EndgameLimit = 3915
-};*/
-
-/*inline Square& operator++(Square& s) { return s = Square(int(s) + 1); }
-constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
-constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
-inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
-inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
-constexpr Color operator~(Color c) {return Color(c ^ BLACK);}*/
-
-enum Score : int { SCORE_ZERO };
-
-
-inline Rank& operator++(Rank& r) { return r = Rank(int(r) + 1); }
-inline File& operator++(File& f) { return f = File(int(f) + 1); }
-inline PieceType& operator++(PieceType& pt) { return pt = PieceType(int(pt) + 1); }
-inline Square& operator++(Square& s) { return s = Square(int(s) + 1); }
-constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
-constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
-inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
-inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
-constexpr Color operator~(Color c) { return Color(c ^ BLACK); }
-inline Color& operator++(Color& c) { return c = Color(int(c) + 1); }
-constexpr Score operator-(Score s) { return Score(-int(s)); }
-constexpr Score operator+(Score a, Score b) { return Score(int(a) + int(b)); }
-constexpr Score operator-(Score a, Score b) { return Score(int(a) - int(b)); }
-constexpr Score operator*(Score a, Score b) { return Score(int(a) * int(b)); }
-constexpr Score operator/(Score a, Score b) { return Score(int(a) / int(b)); }
-inline Score& operator+=(Score& a, Score b) { return a = a + b; }
-inline Score& operator-=(Score& a, Score b) { return a = a - b; }
+enum Depth : int {
+	DEPTH_ZERO = 0,
+	ONE_PLY = 1
+};
 
 constexpr Score S(int mg, int eg) {
 	return Score((int)((unsigned int)eg << 16) + mg);
+}
+
+constexpr Score D(int v, int d) {
+	return S(v + d, v - d);
 }
 
 /// Extracting the signed lower and upper 16 bits is not so trivial because
 /// according to the standard a simple cast to short is implementation defined
 /// and so is a right shift of a signed integer.
 inline Value Eg(Score s) {
-	union { uint16_t u; int16_t s; } eg = { uint16_t(unsigned(s + 0x8000) >> 16) };
-	return Value(eg.s);
+	//return Value(s >> 16);
+	union { uint16_t u; int16_t s; } eg = { uint16_t(unsigned(s + 0x8000) >> 16) }; return Value(eg.s);
 }
 
 inline Value Mg(Score s) {
-	union { uint16_t u; int16_t s; } mg = { uint16_t(unsigned(s)) };
-	return Value(mg.s);
+	//return Value(s & 0xffff);
+	union { uint16_t u; int16_t s; } mg = { uint16_t(unsigned(s)) }; return Value(mg.s);
+}
+
+inline Value VDV(Score s) {
+	int mg = Mg(s);
+	int eg = Eg(s);
+	return Value((mg + eg) >> 2);
+}
+
+inline Value VDD(Score s) {
+	int mg = Mg(s);
+	int eg = Eg(s);
+	return Value(abs(mg - eg) >> 2);
+}
+
+#define ENABLE_BASE_OPERATORS_ON(T)                                \
+constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
+constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
+constexpr T operator-(T d) { return T(-int(d)); }                  \
+inline T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }         \
+inline T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }
+
+#define ENABLE_INCR_OPERATORS_ON(T)                                \
+inline T& operator++(T& d) { return d = T(int(d) + 1); }           \
+inline T& operator--(T& d) { return d = T(int(d) - 1); }
+
+#define ENABLE_FULL_OPERATORS_ON(T)                                \
+ENABLE_BASE_OPERATORS_ON(T)                                        \
+ENABLE_INCR_OPERATORS_ON(T)                                        \
+constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
+constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
+constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
+constexpr int operator/(T d1, T d2) { return int(d1) / int(d2); }  \
+inline T& operator*=(T& d, int i) { return d = T(int(d) * i); }    \
+inline T& operator/=(T& d, int i) { return d = T(int(d) / i); }
+
+ENABLE_FULL_OPERATORS_ON(Value)
+ENABLE_FULL_OPERATORS_ON(Depth)
+ENABLE_FULL_OPERATORS_ON(Direction)
+
+ENABLE_INCR_OPERATORS_ON(PieceType)
+ENABLE_INCR_OPERATORS_ON(Piece)
+ENABLE_INCR_OPERATORS_ON(Color)
+ENABLE_INCR_OPERATORS_ON(Square)
+ENABLE_INCR_OPERATORS_ON(File)
+ENABLE_INCR_OPERATORS_ON(Rank)
+
+ENABLE_BASE_OPERATORS_ON(Score)
+
+#undef ENABLE_FULL_OPERATORS_ON
+#undef ENABLE_INCR_OPERATORS_ON
+#undef ENABLE_BASE_OPERATORS_ON
+
+
+/// Additional operators to add integers to a Value
+constexpr Value operator+(Value v, int i) { return Value(int(v) + i); }
+constexpr Value operator-(Value v, int i) { return Value(int(v) - i); }
+inline Value& operator+=(Value& v, int i) { return v = v + i; }
+inline Value& operator-=(Value& v, int i) { return v = v - i; }
+
+/// Additional operators to add a Direction to a Square
+constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d)); }
+constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d)); }
+inline Square& operator+=(Square& s, Direction d) { return s = s + d; }
+inline Square& operator-=(Square& s, Direction d) { return s = s - d; }
+
+/// Only declared but not defined. We don't want to multiply two scores due to
+/// a very high risk of overflow. So user should explicitly convert to integer.
+Score operator*(Score, Score) = delete;
+
+/// Division of a Score must be handled separately for each term
+inline Score operator/(Score s, int i) {
+	return S(Mg(s) / i, Eg(s) / i);
+}
+
+/// Multiplication of a Score by an integer. We check for overflow in debug mode.
+inline Score operator*(Score s, int i) {
+	return Score(int(s) * i);
+}
+
+constexpr Color operator~(Color c) {
+	return Color(c ^ BLACK); // Toggle color
+}
+
+constexpr Square operator~(Square s) {
+	return Square(s ^ SQ_A8); // Vertical flip SQ_A1 -> SQ_A8
+}
+
+constexpr File operator~(File f) {
+	return File(f ^ FILE_H); // Horizontal flip FILE_A -> FILE_H
+}
+
+constexpr Piece operator~(Piece pc) {
+	return Piece(pc ^ 8); // Swap color of piece B_KNIGHT -> W_KNIGHT
 }
 
 
@@ -181,7 +245,7 @@ constexpr Bitboard KingFlank[FILE_NB] = {
 };
 
 //PIECE_STR[piece] is the algebraic chess representation of that piece
-const std::string PIECE_STR = "PNBRQK~>pnbrqk.";
+const std::string PIECE_STR = "PNBRQK~>pnbrqk ";
 
 //The FEN of the starting position
 const std::string DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
@@ -227,10 +291,9 @@ constexpr File FileOf(Square s) { return File(s & 0b111); }
 constexpr int diagonal_of(Square s) { return 7 + RankOf(s) - FileOf(s); }
 constexpr int anti_diagonal_of(Square s) { return RankOf(s) + FileOf(s); }
 constexpr Square CreateSquare(File f, Rank r) { return Square(r << 3 | f); }
-constexpr int Distance(Square s1, Square s2) { return max(abs(FileOf(s1) - FileOf(s2)), abs(RankOf(s1) - RankOf(s2))); };
 
 //Shifts a bitboard in a particular direction. There is no wrapping, so bits that are shifted of the edge are lost 
- constexpr Bitboard Shift(Direction D,Bitboard b) {
+constexpr Bitboard Shift(Direction D, Bitboard b) {
 	return D == NORTH ? b << 8 : D == SOUTH ? b >> 8
 		: D == NORTH + NORTH ? b << 16 : D == SOUTH + SOUTH ? b >> 16
 		: D == EAST ? (b & ~MASK_FILE[FILE_H]) << 1 : D == WEST ? (b & ~MASK_FILE[FILE_A]) >> 1
@@ -241,82 +304,20 @@ constexpr int Distance(Square s1, Square s2) { return max(abs(FileOf(s1) - FileO
 		: 0;
 }
 
- constexpr Bitboard Span(Color color,Bitboard b) {
-	 return color ? b | b >> 8 | b >> 16 | b >> 24 | b >> 32 : b | b << 8 | b << 16 | b << 24 | b << 32;
- }
+constexpr Bitboard Span(Color color, Bitboard b) {
+	return color ? b | b >> 8 | b >> 16 | b >> 24 | b >> 32 : b | b << 8 | b << 16 | b << 24 | b << 32;
+}
 
 //Returns the actual rank from a given side's perspective (e.g. rank 1 is rank 8 from Black's perspective)
-constexpr Rank RelativeRank(Color c,Rank r) {
+constexpr Rank RelativeRank(Color c, Rank r) {
 	return c == WHITE ? r : Rank(RANK_8 - r);
 }
 
 //Returns the actual direction from a given side's perspective (e.g. North is South from Black's perspective)
-constexpr Direction RelativeDir(Color c,Direction d) {
+constexpr Direction RelativeDir(Color c, Direction d) {
 	return Direction(c == WHITE ? d : -d);
 }
 
-class Move {
-public:
-	U16 move;
-
-	//Defaults to a null move (a1a1)
-	inline Move() : move(0) {}
-	inline Move(uint16_t m) { move = m; }
-	inline Move(Square from, Square to) : move(0) {move = (from << 6) | to;}
-	inline Move(Square from, Square to, MoveFlags flags) : move(0) {move = (flags << 12) | (from << 6) | to;}
-	Move(const std::string& move);
-
-	inline Square To() const { return Square(move & 0x3f); }
-	inline Square From() const { return Square((move >> 6) & 0x3f); }
-	inline int ToFrom() const { return move & 0xffff; }
-	inline MoveFlags Flags() const { return MoveFlags((move >> 12) & 0xf); }
-	inline bool IsCapture() const { return (move >> 12) & CAPTURE; }
-	inline bool IsProm() const { return (move >> 12) & PROMOTION; }
-	inline bool IsQuiet() const { return !((move >> 12) & 0b1100); }
-	string ToUci() const;
-
-	void operator=(Move m) { move = m.move; }
-	bool operator==(Move a) const { return ToFrom() == a.ToFrom(); }
-	bool operator!=(Move a) const { return ToFrom() != a.ToFrom(); }
-};
-
-//Adds, to the move pointer all moves of the form (from, s), where s is a square in the bitboard to
-template<MoveFlags F = QUIET>
-inline Move* make(Square from, Bitboard to, Move* list) {
-	while (to) *list++ = Move(from, pop_lsb(&to), F);
-	return list;
-}
-
-//Adds, to the move pointer all quiet promotion moves of the form (from, s), where s is a square in the bitboard to
-template<>
-inline Move* make<PROMOTIONS>(Square from, Bitboard b, Move* list) {
-	Square p;
-	while (b) {
-		p = pop_lsb(&b);
-		*list++ = Move(from, p, PR_KNIGHT);
-		*list++ = Move(from, p, PR_BISHOP);
-		*list++ = Move(from, p, PR_ROOK);
-		*list++ = Move(from, p, PR_QUEEN);
-	}
-	return list;
-}
-
-//Adds, to the move pointer all capture promotion moves of the form (from, s), where s is a square in the bitboard to
-template<>
-inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard b, Move* list) {
-	Square p;
-	while (b) {
-		p = pop_lsb(&b);
-		*list++ = Move(from, p, PC_KNIGHT);
-		*list++ = Move(from, p, PC_BISHOP);
-		*list++ = Move(from, p, PC_ROOK);
-		*list++ = Move(from, p, PC_QUEEN);
-	}
-	return list;
-}
-
-//extern std::ostream& operator<<(std::ostream& os, const Move& m);
-extern std::ostream& operator<<(std::ostream& os, Move m);
 
 //The white king and kingside rook
 const Bitboard WHITE_OO_MASK = 0x90;
@@ -355,11 +356,3 @@ constexpr Bitboard ooo_blockers_mask(Color c) {
 
 constexpr Bitboard ignore_ooo_danger(Color c) { return c == WHITE ? 0x2 : 0x200000000000000; }
 
-struct [[nodiscard]] Stack {
-	Move move;
-	Move killer1;
-	Move killer2;
-	Value score = 0;
-};
-
-extern Stack stack[128];

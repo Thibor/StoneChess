@@ -4,26 +4,30 @@
 #include <ostream>
 
 #include "types.h"
+#include "move.h"
 
-enum RecType :U8 {
-	NODE_PV = 0,
-	NODE_BETA = 1,
-	NODE_ALPHA = 2
+enum Bound :U8 {
+	BOUND_NONE,
+	BOUND_UPPER,
+	BOUND_LOWER,
+	BOUND_EXACT = BOUND_UPPER | BOUND_LOWER
 };
 
 struct CRec {
-	U64 hash;//8
-	U16 move;//2
+	Hash hash;//8
+	Move move;//2
 	S16 score;//2
-	U8 depth;//1
-	RecType type;//1 
+	S8 depth;//1
+	Bound bound;//1 
 	U16 age;//2
 
-	void SetRec(U64 h, S16 s, U16 m, RecType t, U8 d, U16 a) {
+	Value GetValue() const { return (Value)score; }
+
+	void SetRec(Hash h, Value s, Move m, Bound t, Depth d, U16 a) {
 		hash = h;
-		score = s;
+		score = (S16)s;
 		move = m;
-		type = t;
+		bound = t;
 		depth = d;
 		age = a;
 	}
@@ -31,18 +35,17 @@ struct CRec {
 
 class CTranspositionTable
 {
-	U64 used;
-	U64 records;
-	U64 mask;
-	CRec* rt;
+	U64 records = 0;
+	U64 mask = 0;
+	CRec* rt = NULL;
+	int limit = 2;
 public:
-	U16 age;
-	CTranspositionTable();
+	U16 age = limit;
 	~CTranspositionTable();
 	void Clear();
 	int Permill() const;
 	void Resize(U64 mbSize);
-	bool SetRec(Hash hash, Value score, U16 move, RecType type, Depth depth);
+	bool SetRec(Hash hash, Value score, Move move, Bound type, Depth depth);
 	CRec* GetRec(Hash hash);
 
 };

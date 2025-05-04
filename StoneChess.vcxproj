@@ -117,6 +117,7 @@
     <ClCompile Include="CTranspositionTable.cpp" />
     <ClCompile Include="eval.cpp" />
     <ClCompile Include="input.cpp" />
+    <ClCompile Include="move.cpp" />
     <ClCompile Include="picker.cpp" />
     <ClCompile Include="position.cpp" />
     <ClCompile Include="program.cpp" />
@@ -131,6 +132,7 @@
     <ClInclude Include="CTranspositionTable.h" />
     <ClInclude Include="eval.h" />
     <ClInclude Include="input.h" />
+    <ClInclude Include="move.h" />
     <ClInclude Include="picker.h" />
     <ClInclude Include="position.h" />
     <ClInclude Include="program.h" />

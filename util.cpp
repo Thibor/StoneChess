@@ -19,7 +19,7 @@ std::string trim(const std::string& s)
     return std::string(start, end + 1);
 }
 
-void splitString(const std::string& txt, std::vector<std::string>& vStr, char ch) {
+void SplitString(const std::string& txt, std::vector<std::string>& vStr, char ch) {
     vStr.clear();
     if (txt == "")
         return;
@@ -38,7 +38,7 @@ void splitString(const std::string& txt, std::vector<std::string>& vStr, char ch
     vStr.push_back(txt.substr(initialPos, std::min(pos, txt.size()) - initialPos + 1));
 }
 
-void splitInt(const string& txt, vector<int>& vInt, char ch) {
+void SplitInt(const string& txt, vector<int>& vInt, char ch) {
     vInt.clear();
     if (txt == "")
         return;

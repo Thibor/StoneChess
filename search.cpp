@@ -1,41 +1,65 @@
 #include "search.h"
 
-#include "input.h"
+int FUTILITY_MARGIN;
+int RAZOR_MARGIN;
+int NULL_MARGIN;
+int LMR_MARGIN;
+int ASPIRATION;
+int CONTEMPT;
+int TEMPO;
 
-#define MAX_DEPTH 100
+int FutilityMoveCounts[2][16]; // [improving][depth]
+int Reductions[2][2][64][64];  // [pv][improving][depth][moveNumber]
 
-const Value CHECKMATE_MAX = 0x7ff0;
-const Value CHECKMATE_NEAR = 0x7000;
-const Value CHECKMATE_INFINITY = 0x7fff;
+template <bool PvNode> Depth reduction(bool i, Depth d, int mn) {
+	return Reductions[PvNode][i][std::min(d / ONE_PLY, 63)][std::min(mn, 63)] * ONE_PLY;
+}
 
-Value FUTILITY_MARGIN_ORG = 115;
-Value RAZOR_MARGIN_ORG = 230;
-Value RFP_MARGIN_ORG = 115;
-Value NULL_MARGIN_ORG = 4;
-Value LMR_MARGiN_ORG = 86;
-
-Value FUTILITY_MARGIN;
-Value RAZOR_MARGIN;
-Value RFP_MARGIN;
-Value NULL_MARGIN;
-U32 LMR[256][256];
+struct Stack {
+	int ply = 0;
+	Move move = MOVE_NONE;
+	Move killers[2] = {};
+	Value staticEval = VALUE_ZERO;
+	Value staticValue = VALUE_ZERO;
+};
 
 sSearchDriver sd;
 
 void InitSearch() {
-	int d, m;
-	for (d = 0; d < 256; d++)
-		for (m = 0; m < 256; m++)
-			LMR[d][m] = 1.25 + log(d) * log(m) * (LMR_MARGiN_ORG + options.lmr) / 300;
-	FUTILITY_MARGIN = FUTILITY_MARGIN_ORG - options.futility;
-	RFP_MARGIN = RFP_MARGIN_ORG - options.rfp;
-	RAZOR_MARGIN = RAZOR_MARGIN_ORG - options.razoring;
-	NULL_MARGIN = NULL_MARGIN_ORG - options.nullMove;
+	FUTILITY_MARGIN = options.futility;
+	RAZOR_MARGIN = options.razoring;
+	NULL_MARGIN = options.nullMove;
+	LMR_MARGIN = options.lmr;
+	ASPIRATION = options.aspiration;
+	CONTEMPT = options.contempt;
+	TEMPO = options.tempo;
+	tt.Resize(options.hash);
+
+	for (int imp = 0; imp <= 1; ++imp)
+		for (int d = 1; d < 64; ++d)
+			for (int mc = 1; mc < 64; ++mc)
+			{
+				double r = log(d) * log(mc) / (LMR_MARGIN / 100.0);
+
+				Reductions[NONPV][imp][d][mc] = int(std::round(r));
+				Reductions[PV][imp][d][mc] = std::max(Reductions[NONPV][imp][d][mc] - 1, 0);
+
+				// Increase reduction for non-PV nodes when eval is not improving
+				if (!imp && r > 1.0)
+					Reductions[NONPV][imp][d][mc]++;
+			}
+
+	for (int d = 0; d < 16; ++d)
+	{
+		FutilityMoveCounts[0][d] = int(2.4 + 0.74 * pow(d, 1.78));
+		FutilityMoveCounts[1][d] = int(5.0 + 1.00 * pow(d, 2.00));
+	}
+
 }
 
 
 //Check for time
-bool CheckTime() {
+static bool CheckTime() {
 	string input;
 	if (GetInput(input))
 		UciCommand(input);
@@ -45,394 +69,466 @@ bool CheckTime() {
 	return chronos.gameOver;
 }
 
-void ExtractPv(vector<Move>& list) {
-	Hash hash = position.GetHash();
+static void ExtractPv(vector<Move>& list) {
+	Hash hash = g_pos.GetHash();
 	CRec* rec = tt.GetRec(hash);
-	if (rec == nullptr)
+	if (!rec)
 		return;
 	Move move = rec->move;
-	if (!position.IsLegal(move))
+	if (!g_pos.IsLegal(move))
 		return;
-	position.MakeMove(move);
-	if (position.IsRepetition()) {
-		position.UnmakeMove(move);
+	g_pos.MakeMove(move);
+	if (g_pos.IsRepetition()) {
+		g_pos.UnmakeMove(move);
 		return;
 	}
 	list.push_back(move);
 	ExtractPv(list);
 }
 
-string ExtractPv() {
-	position.MakeMove(sd.bstMove);
+static string ExtractPv() {
+	g_pos.MakeMove(sd.bestMove);
 	string pv = "";
 	vector<Move> list;
 	ExtractPv(list);
+	sd.ponderMove = list.size() ? list[0] : MOVE_NONE;
 	for (int n = list.size() - 1; n >= 0; n--) {
 		Move move = list[n];
-		if (n == 0)
-			sd.ponderMove = move;
-		string uci = move.ToUci();
-		pv = " " + uci + pv;
-		position.UnmakeMove(move);
+		pv = " " + move.ToUci() + pv;
+		g_pos.UnmakeMove(move);
 	}
-	position.UnmakeMove(sd.bstMove);
-	return sd.bstMove.ToUci() + pv;
+	g_pos.UnmakeMove(sd.bestMove);
+	return sd.bestMove.ToUci() + pv;
 }
 
 //show depth score and next best move in principal variation
-void ShowInfoPv() {
+static void ShowInfoPv() {
 	if (chronos.ponder || !chronos.post)
 		return;
-	uint64_t ms = sd.Ms();
-	uint64_t nps = ms ? (sd.nodes * 1000) / ms : 0;
-	string score = sd.bstScore > CHECKMATE_NEAR ? "mate " + to_string((CHECKMATE_MAX - sd.bstScore + 1) >> 1) :
-		sd.bstScore < -CHECKMATE_NEAR ? "mate " + to_string((-CHECKMATE_MAX - sd.bstScore) >> 1) :
-		"cp " + to_string(sd.bstScore);
+	U64 ms = sd.Ms();
+	U64 nps = ms ? (sd.nodes * 1000) / ms : 0;
+	string score = sd.bestScore > VALUE_MATE_IN ? "mate " + to_string((VALUE_MATE - sd.bestScore + 1) >> 1) :
+		sd.bestScore < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - sd.bestScore) >> 1) :
+		"cp " + to_string(sd.bestScore);
 	string pv = ExtractPv();
-	cout << "info time " << ms << " depth " << sd.depth << " score " << score << " nps " << nps << " nodes " << sd.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
+	//cout << "info string phase " << g_pos.phase << endl;
+	cout << "info time " << ms << " depth " << sd.depth << " multipv " << sd.multiPV << " score " << score << " nps " << nps << " nodes " << sd.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
 }
 
-void ShowBestMove() {
+static void ShowBestMove() {
 	if (chronos.ponder || !chronos.post)
 		return;
-	ShowInfoPv();
+	//ShowInfoPv();
 	U64 proNode = sd.nodes ? ((sd.nodes - sd.nodesq) * 100) / sd.nodes : 0;
 	int proMove = sd.moveSet ? (sd.moveOk * 100) / sd.moveSet : 0;
 	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
-	cout << "bestmove " << sd.bstMove.ToUci();
+	cout << "bestmove " << sd.bestMove.ToUci();
 	if (options.ponder && sd.ponderMove.move)
 		cout << " ponder " << sd.ponderMove.ToUci();
 	cout << endl;
 }
 
+static Value futility_margin(Depth d, bool improving) {
+	return Value((175 - 50 * improving) * d / ONE_PLY);
+}
+
+static void UpdateQuietStats(Stack* ss, Move move) {
+	if (ss->killers[0] != move)
+	{
+		ss->killers[1] = ss->killers[0];
+		ss->killers[0] = move;
+	}
+}
+
 //Quiesce search
-Value QSearch(Value alpha, Value beta, NodeTypes nt) {
+template <NodeType nt>
+Value QSearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = DEPTH_ZERO) {
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
-		return alpha;
+		return VALUE_ZERO;
 	sd.nodesq++;
-	Value staticEval = Eval();
-	Value score = staticEval;
-	if (score >= beta)
+	(ss + 1)->ply = ss->ply + 1;
+	Value staticEval = ss->staticEval = Eval();
+	Value value = staticEval;
+	Value bestValue = -VALUE_INFINITE;
+	//Value bestValue = staticEval;
+	Move bestMove = MOVE_NONE;
+	if (value >= beta)
 		return beta;
-	if (score > alpha)
-		alpha = score;
-	Color color = position.ColorUs();
+	if (value > alpha)
+		alpha = value;
+	Color color = pos.ColorUs();
 	Picker picker;
-	position.MoveList(color, picker.mList, picker.count, false);
+	pos.MoveList(color, picker.mList, picker.count, false);
 	if (!picker.count)
 		return alpha;
 	picker.Fill();
-	bool inCheck = position.InCheck();
-	if (nt == NTNONPV) {
-		CRec* rec = tt.GetRec(position.GetHash());
-		if (rec != nullptr)
-			if (picker.SetMove(rec->move)) {
-				if (rec->type == NODE_PV)
-					return rec->score;
-				else if (rec->type == NODE_BETA) {
-					if (rec->score >= beta)
-						return beta;
-				}
-				else if (rec->type == NODE_ALPHA)
-					if (rec->score <= alpha)
-						return alpha;
-				if (!inCheck)
-					if ((rec->type == NODE_PV) ||
-						(rec->type == NODE_BETA && staticEval < rec->score) ||
-						(rec->type == NODE_ALPHA && staticEval > rec->score))
-						staticEval = rec->score;
-			}
+	constexpr bool pvNode = nt == PV;
+	bool inCheck = pos.InCheck();
+	bool ttHit = false;
+	Value ttValue = VALUE_NONE;
+	Move ttMove = MOVE_NONE;
+	Hash hash = pos.GetHash();
+	if (inCheck)
+	{
+		staticEval = ss->staticEval = -VALUE_INFINITE;
 	}
-	Value bestScore = -CHECKMATE_MAX;
-	U16 bestMove = 0;
+	else
+	{
+		CRec* ttE = tt.GetRec(hash);
+		if (ttE) {
+			ttMove = ttE->move;
+			ttValue = ttE->GetValue();
+			if (picker.SetBest(ttMove)) {
+				ttHit = true;
+				if (!pvNode
+					&& ttE->depth >= depth
+					//&& ttValue != VALUE_NONE
+					//&& (ttValue >= beta ? (ttE->bound & BOUND_LOWER) : (ttE->bound & BOUND_UPPER))
+					)
+					//return ttValue;
+					/*if (ttE->bound & BOUND_UPPER) {
+						if (ttE->score >= beta)
+							return ttValue;
+					}
+					else if (ttE->bound & BOUND_LOWER)
+						if (ttE->score <= alpha)
+							return ttValue;*/
+					if (ttE->bound == BOUND_EXACT)
+						return ttE->GetValue();
+					else if (ttE->bound == BOUND_UPPER) {
+						if (ttE->score >= beta) {
+							if (ttMove.IsQuiet())UpdateQuietStats(ss, ttMove);
+							return ttValue;
+						}
+					}
+					else if (ttE->bound == BOUND_LOWER)
+						if (ttE->score <= alpha)
+							return ttValue;
+				if ((ttE->bound == BOUND_EXACT) ||
+					(ttE->bound == BOUND_UPPER && staticEval < ttE->score) ||
+					(ttE->bound == BOUND_LOWER && staticEval > ttE->score))
+					staticEval = ttValue;
+
+			}
+		}
+	}
 	Value oldAlpha = alpha;
+
 	for (int n = 0; n < picker.count; n++)
 	{
-		PickerE pe = n < picker.index ? picker.pList[n] : picker.Pick(n);
+		//PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
+		PickerE pe = picker.Pick(n);
 		Move m = pe.move;
-		if (bestMove && (pe.see < 0))break;
-		position.MakeMove(m);
-		score = -QSearch(-beta, -alpha, nt);
-		position.UnmakeMove(m);
-		if (chronos.gameOver)
-			return alpha;
-		if (score > bestScore)
-		{
-			bestScore = score;
-			bestMove = m.move;
+		if ((bestMove != MOVE_NONE) && (pe.value < 0))break;
+		pos.MakeMove(m);
+		value = -QSearch<nt>(pos, ss + 1, -beta, -alpha, depth - ONE_PLY);
+		pos.UnmakeMove(m);
+		//if (chronos.gameOver)return alpha;
+		if (value > bestValue) {
+			bestValue = value;
+			bestMove = m;
+			if (value >= beta)
+				break;
+			if (value > alpha)
+				alpha = value;
 		}
-		if (score > alpha)
-			alpha = score;
-		if (score >= beta)
-			break;
 	}
-	//if (!chronos.gameOver && bestMove) {
-	RecType rt = bestScore <= oldAlpha ? NODE_ALPHA : bestScore >= beta ? NODE_BETA : NODE_PV;
-	tt.SetRec(position.GetHash(), bestScore, bestMove, rt, 0);
-	//}
-	return alpha;
+	Bound rt = bestValue <= oldAlpha ? BOUND_LOWER : bestValue >= beta ? BOUND_UPPER : BOUND_EXACT;
+	tt.SetRec(hash, bestValue, bestMove, rt, DEPTH_ZERO);
+	return bestValue;
 }
 
 //Main search loop
-Value Search(Depth depth, Depth ply, Value alpha, Value beta, NodeTypes nt, bool doNull = true) {
-	if ((position.move50 >= 100) || (position.IsRepetition()))
-		return ply & 1 ? -options.contempt : options.contempt;
-	S32 score;
-	bool raised_alpha = false;
-	Color color = position.ColorUs();
-	bool inCheck = position.InCheck();
-	if (inCheck)
-		depth++;
-	if (depth < 1)
-		return QSearch(alpha, beta, nt);
+template <NodeType nt>
+static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value beta, bool doNull = true) {
+	// Step 1.
+	if ((pos.move50 >= 100) || (pos.IsRepetition()))
+		return VALUE_ZERO;
+	Value value;
+	bool inCheck = pos.InCheck();
+	if (inCheck)// && depth<ONE_PLY)
+		++depth;
+	if (depth < ONE_PLY)
+		return QSearch<nt>(pos, ss, alpha, beta);
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
-		return alpha;
-
+		return VALUE_ZERO;
 	//mate distance pruning
-	int  mate_value = CHECKMATE_MAX - ply;
+	Value  mate_value = VALUE_MATE - ss->ply;
 	if (alpha < -mate_value) alpha = -mate_value;
-	if (beta > mate_value) beta = mate_value;
+	if (beta > mate_value - 1) beta = mate_value - 1;
 	if (alpha >= beta) return alpha;
+	constexpr bool pvNode = nt == PV;
 
-	//trasposition table pruning
-	int staticEval = Eval();
+	Value staticEval = ss->staticEval = Eval();
+	ss->move = MOVE_NONE;
+	(ss + 1)->ply = ss->ply + 1;
+	(ss + 2)->staticValue = VALUE_ZERO;
+	(ss + 2)->killers[0].move = (ss + 2)->killers[1].move = MOVE_NONE;
+
 	Picker picker;
-	position.MoveList(color, picker.mList, picker.count);
-	if (!picker.count)return inCheck ? -CHECKMATE_MAX + ply : 0;
+	pos.MoveList(pos.ColorUs(), picker.mList, picker.count);
+	if (!picker.count)
+		return inCheck ? -VALUE_MATE + ss->ply : VALUE_ZERO;
 	picker.Fill();
-	if (stack[ply].killer1.move)
-		picker.SetMove(stack[ply].killer1);
-	if (stack[ply].killer2.move)
-		picker.SetMove(stack[ply].killer2);
-	bool        pv = (beta - alpha) != 1;
-	int hashMove = 0;
-	CRec* rec = tt.GetRec(position.GetHash());
-	if (rec != nullptr)
-		if (picker.SetMove(rec->move)) {
-			hashMove = rec->move;
-			if (rec->depth >= depth && !pv)
-				if (rec->type == NODE_PV)
-					return rec->score;
-				else if (rec->type == NODE_BETA) {
-					if (rec->score >= beta) {
-						if (stack[ply].killer1.move != rec->move && stack[ply].killer2.move != rec->move) {
-							stack[ply].killer2.move = stack[ply].killer1.move;
-							stack[ply].killer1.move = rec->move;
-						}
-						return beta;
+	bool ttHit = false;
+	Move ttMove = MOVE_NONE;
+	Hash hash = pos.GetHash();
+	CRec* ttE = tt.GetRec(hash);
+	if (ttE) {
+		Move ttMove = ttE->move;
+		Value ttValue = ttE->GetValue();
+		if (picker.SetBest(ttMove)) {
+			ttHit = true;
+			if (!pvNode && ttE->depth >= depth)
+				if (ttE->bound & BOUND_UPPER) {
+					if (ttValue >= beta) {
+						if (ttMove.IsQuiet())
+							UpdateQuietStats(ss, ttMove);
+						return ttValue;
 					}
 				}
-				else if (rec->type == NODE_ALPHA)
-					if (rec->score <= alpha)
-						return alpha;
-			if (!inCheck)
-				if ((rec->type == NODE_PV) ||
-					(rec->type == NODE_BETA && staticEval < rec->score) ||
-					(rec->type == NODE_ALPHA && staticEval > rec->score))
-					staticEval = rec->score;
+				else if (ttE->bound & BOUND_LOWER)
+					if (ttE->score <= alpha)
+						return ttValue;
+			if ((ttE->bound == BOUND_EXACT) ||
+				(ttE->bound == BOUND_UPPER && staticEval < ttE->score) ||
+				(ttE->bound == BOUND_LOWER && staticEval > ttE->score))
+				staticEval = ttE->GetValue();
+
 		}
-
-	/*if (!inCheck && alpha == beta - 1) {
-
-		//razoring
-		if (staticEval < alpha - RAZOR_MARGIN * depth) {
-			return QSearch(alpha - 1, alpha, nt);
-			//if (score < alpha && abs(score) < CHECKMATE_NEAR)return score;
-		}
-
-		//rfp
-		if ((staticEval >= beta + RFP_MARGIN * depth)
-			//&&(depth<8)
-			)
-			return staticEval;
-
-		//null move pruning
-		if (doNull
-			//&& (depth > 4)
-			&& (staticEval >= beta + NULL_MARGIN * depth)
-			&& position.NotOnlyPawns()) {
-			Depth r = depth / 4 + 1;
-			position.MakeNull();
-			Value score = -Search(depth - r, ply + 1, -beta, 1 - beta, NTNONPV, false);
-			position.UnmakeNull();
-			if (score >= beta) {
-				if (score >= CHECKMATE_NEAR)score = beta;
-				return score;
-			}
-		}
-
-	}*/
-
-	//razoring
-	if (staticEval < alpha - RAZOR_MARGIN * (depth + 2)) {
-		//QSearch(alpha, beta, nt);
-		score = QSearch(alpha - 1, alpha, nt);
-		if (score < alpha
-			&& abs(score) < CHECKMATE_NEAR)
-			return score;
 	}
+	picker.SetBest(ss->killers[0]);
+	picker.SetBest(ss->killers[1]);
+	//picker.best = sd.multiPV-1;
+	int td = depth + ss->ply;
+
+	bool improving = ss->staticEval >= (ss - 2)->staticEval || (ss - 2)->staticEval == VALUE_NONE;
 	if (!inCheck) {
 
+		//razoring
+		if (depth < 2 * ONE_PLY
+			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
+			return QSearch<nt>(pos, ss, alpha, beta);
 
-		//static null move pruning
-		if (staticEval >= beta + depth * RFP_MARGIN
-			&& abs(staticEval) < CHECKMATE_NEAR)
+		//futility pruning
+		if (depth < 7 * ONE_PLY
+			&& staticEval - beta >(FUTILITY_MARGIN * depth) / td
+			&& staticEval - futility_margin(depth, improving) >= beta
+			&& staticEval < VALUE_KNOWN_WIN) // Do not return unproven wins
 			return staticEval;
+
+		//eval pruning
+		/*if (depth < 3
+			&& !pvNode
+			&& !inCheck
+			&& abs(beta - 1) > VALUE_MATED_IN)
+		{
+			int eval_margin = 120 * depth;
+			if (staticEval - eval_margin >= beta)
+				return staticEval - eval_margin;
+		}*/
 
 		//null move pruning
 		if (doNull
-			&& (staticEval >= beta + NULL_MARGIN * depth)
-			&& position.NotOnlyPawns()) {
-			position.MakeNull();
-			Depth d = 4 + depth / 6;
-			Value score = -Search(depth - d, ply + 1, -beta, 1 - beta, NTNONPV, false);
-			position.UnmakeNull();
-			if (score >= beta) {
-				if (score >= CHECKMATE_NEAR)score = beta;
-				return score;
+			&& (ss - 1)->staticEval < (NULL_MARGIN * ss->ply) / td
+			&& staticEval >= beta
+			&& pos.NotOnlyPawns()) {
+			pos.MakeNull();
+			Depth R = ((NULL_MARGIN + 67 * depth / ONE_PLY) / 256 + std::min(int(staticEval - beta) / 200, 3)) * ONE_PLY;
+			Value nullValue = -Search<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1, false);
+			pos.UnmakeNull();
+			if (nullValue >= beta)
+			{
+				if (nullValue >= VALUE_MATE_IN)
+					nullValue = beta;
+
+				if (abs(beta) < VALUE_KNOWN_WIN && depth < 12 * ONE_PLY)
+					return nullValue;
+
+				Value v = Search<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1);
+
+				if (v >= beta)
+					return nullValue;
 			}
 		}
-
 	}
 
-	bool prune = !inCheck && abs(alpha) < CHECKMATE_NEAR && staticEval + depth * FUTILITY_MARGIN <= alpha;
+	int futility = staticEval + depth * FUTILITY_MARGIN;
+	bool prune = !inCheck && (abs(alpha) < VALUE_MATE_IN) && (ttMove == MOVE_NONE) && (futility < alpha);
 
-	Value bestScore = -CHECKMATE_MAX;
-	Value bestMove = 0;
+	Value bestValue = -VALUE_MATE;
 	Value oldAlpha = alpha;
+	Move bestMove = MOVE_NONE;
 	for (int n = 0; n < picker.count; n++)
 	{
-		PickerE pe = n < picker.index ? picker.pList[n] : picker.Pick(n);
+		//PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
+		PickerE pe = picker.Pick(n);
 		Move m = pe.move;
-		int lmr = LMR[depth][n];
-
-		if (bestMove && prune && (staticEval + pe.see < alpha - FUTILITY_MARGIN * depth)) {
-			bestMove = alpha;
-			break;
-		}
-
-		position.MakeMove(m);
-		if (bestMove && prune && !position.InCheck() && m.IsQuiet()) {
-			position.UnmakeMove(m);
+		bool moveCountPruning = depth < 16 * ONE_PLY && n >= FutilityMoveCounts[improving][depth / ONE_PLY];
+		if (prune && moveCountPruning && m.IsQuiet())
 			continue;
-		}
-		if (!n || inCheck)
-			score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV);
+		pos.MakeMove(m);
+		if (!n)
+			value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		else {
-			int reduction = lmr;
-			if (pe.see < 0) {
-				reduction++;
-				if (nt == NTNONPV)
-					reduction++;
+			Depth r = DEPTH_ZERO;
+			if (pe.value < 0)++r;
+			if (nt == NONPV)++r;
+			if (m.IsQuiet())++r;
+			//if (pos.move50)++r; else if (r)--r;
+			//if (pos.move50)++r;
+			if (r && pos.InCheck())--r;
+			if (r && improving)--r;
+			r += reduction<nt>(improving, depth, n);
+			value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY - r, -alpha - 1, -alpha);
+			if (r && value > alpha)
+				value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
+			if (value > alpha && value < beta)
+				value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
+		}
+		pos.UnmakeMove(m);
+		if (chronos.gameOver)
+			return alpha;
+		if (value > bestValue) {
+			bestMove = m;
+			bestValue = value;
+			ss->staticValue = value;
+			if (value >= beta)
+			{
+				if (m.IsQuiet())
+					UpdateQuietStats(ss, m);
+				break;
 			}
-			score = -Search(depth - 1 - reduction, ply + 1, -alpha - 1, -alpha, NTNONPV);
-			if (reduction && score > alpha)
-				score = -Search(depth - 1, ply + 1, -alpha - 1, -alpha, NTNONPV);
-			if (score > alpha && score < beta)
-				score = -Search(depth - 1, ply + 1, -beta, -alpha, NTPV);
-		}
-		position.UnmakeMove(m);
-		if (score > bestScore) {
-			bestScore = score;
-			bestMove = m.move;
-		}
-		if (score > alpha)
-			alpha = score;
-		if (score >= beta)
-		{
-			stack[ply].killer2.move = stack[ply].killer1.move;
-			stack[ply].killer1.move = m.move;
-			break;
+			if (value > alpha)
+				alpha = value;
 		}
 	}
-	RecType rt = bestScore <= oldAlpha ? NODE_ALPHA : bestScore >= beta ? NODE_BETA : NODE_PV;
-	tt.SetRec(position.GetHash(), bestScore, bestMove, rt, depth);
-	return alpha;
+	Bound rt = bestValue <= oldAlpha ? BOUND_LOWER : bestValue >= beta ? BOUND_UPPER : BOUND_EXACT;
+	tt.SetRec(hash, bestValue, bestMove, rt, depth);
+	return bestValue;
 }
 
 //search first ply
-Value SearchRoot(Picker& picker, Depth depth, Value alpha, Value beta) {
+static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, Value alpha, Value beta) {
 	Value oldAlpha = alpha;
-	Value score = -CHECKMATE_INFINITY;
-	Value bstScore = -CHECKMATE_INFINITY;
-	U16 bstMove = 0;
-	Color color = position.ColorUs();
-	for (int n = 0; n < picker.count; n++) {
-		Move m = picker.pList[n].move;
-		position.MakeMove(m);
-		bool inCheck = position.InCheck();
-		if (!bstMove)
-			score = -Search(depth - 1, 1, -beta, -alpha, NTPV);
+	Value value;
+	Value bestValue = -VALUE_INFINITE;
+	Move bestMove = MOVE_NONE;
+	picker.best = sd.multiPV;
+	ss->move = MOVE_NONE;
+	ss->staticEval = VALUE_ZERO;
+	(ss + 1)->ply = ss->ply + 1;
+	(ss + 2)->staticValue = VALUE_ZERO;
+	(ss + 2)->killers[0].move = (ss + 2)->killers[1].move = MOVE_NONE;
+	for (int n = sd.multiPV - 1; n < picker.count; n++) {
+		PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
+		Move move = pe.move;
+		pos.MakeMove(move);
+		if (bestMove == MOVE_NONE)
+			value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		else {
-			score = -Search(depth - 1, 1, -alpha - 1, -alpha, NTNONPV);
-			if (score > alpha)
-				score = -Search(depth - 1, 1, -beta, -alpha, NTPV);
+			value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
+			if (value > alpha)
+				value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		}
-		position.UnmakeMove(m);
-		if (bstScore < score) {
-			bstScore = score;
-			bstMove = m.move;
+		pos.UnmakeMove(move);
+		if (bestValue < value) {
+
 		}
 		if (chronos.gameOver)
 			return alpha;
-		if (score >= beta)
-			return beta;
-		if (score > alpha) {
-			alpha = score;
-			picker.SetBest(n);
-			sd.bstMove = m;
-			sd.bstScore = score;
+		if (bestValue < value) {
+			bestValue = value;
+			bestMove = move;
+			ss->staticValue = value;
+			sd.bestScore = value;
+			sd.bestMove = move;
 			ShowInfoPv();
+			if (value >= beta)
+				break;
+			alpha = value;
 		}
 	}
-	if (!chronos.gameOver && bstMove) {
-		RecType rt = bstScore <= oldAlpha ? NODE_ALPHA : bstScore >= beta ? NODE_BETA : NODE_PV;
-		tt.SetRec(position.GetHash(), bstScore, bstMove, rt, depth);
-	}
-	return alpha;
+	Bound rt = bestValue <= oldAlpha ? BOUND_LOWER : bestValue >= beta ? BOUND_UPPER : BOUND_EXACT;
+	tt.SetRec(pos.GetHash(), bestValue, bestMove, rt, depth);
+	return bestValue;
 }
 
 
-Value SearchWiden(Picker& picker, Depth depth, Value score) {
-	Value alpha = score - options.aspiration;
-	Value beta = score + options.aspiration;
-	score = SearchRoot(picker, depth, alpha, beta);
+static Value SearchWiden(Position& pos, Stack* ss, Picker& picker, Depth depth, Value score) {
+	Value alpha = score - ASPIRATION;
+	Value beta = score + ASPIRATION;
+	score = SearchRoot(pos, ss, picker, depth, alpha, beta);
 	if (score <= alpha || score >= beta)
-		score = SearchRoot(picker, depth, -CHECKMATE_MAX, CHECKMATE_MAX);
+		score = SearchRoot(pos, ss, picker, depth, -VALUE_MATE, VALUE_MATE);
 	return score;
 }
 
 //start search
 void SearchIterate() {
-	bool inCheck = position.InCheck();
+	bool inCheck = g_pos.InCheck();
 	sd.Restart();
 	tt.age++;
 	Picker picker;
-	position.MoveList(position.ColorUs(), picker.mList, picker.count);
+	g_pos.MoveList(g_pos.ColorUs(), picker.mList, picker.count);
 	if (!picker.count) {
 		cout << "info string no moves" << endl;
 		return;
 	}
-	memset(stack, 0, sizeof(stack));
+	Stack stack[MAX_PLY + 7] = {};
+	Stack* ss = stack + 4;
+	(ss + 1)->ply = 1;
+	std::memset(ss - 4, 0, 7 * sizeof(Stack));
 	picker.Fill();
-	picker.Sort();
-	Value score = Search(1, 0, -CHECKMATE_MAX, CHECKMATE_MAX, NTPV);
-	for (sd.depth = 1; sd.depth < MAX_DEPTH; sd.depth++) {
-		score = SearchWiden(picker, sd.depth, score);
+	if (chronos.rootMoves.size()) {
+		for (Move m : chronos.rootMoves)
+			picker.SetBest(m);
+		if (picker.best) {
+			picker.count = picker.best;
+			picker.best = 0;
+		}
+	}
+	tempo = Value(TEMPO);
+	int ct = CONTEMPT;
+	contempt = (g_pos.ColorWhite() ? S(ct, ct / 2) : -S(ct, ct / 2));
+	sd.depth = ONE_PLY;
+	sd.multiPV = 1;
+	Value score = Search<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
+	while (!chronos.gameOver) {
+		score = SearchWiden(g_pos, ss, picker, sd.depth, score);
+		if (sd.bestMove != MOVE_NONE) {
+			picker.best = sd.multiPV - 1;
+			picker.SetBest(sd.bestMove);
+		}
+
+		/*for (int i1 = 0; i1<picker.count; i1++)
+			for(int i2=i1+1;i2<picker.count;i2++)
+				if (picker.pList[i1].move == picker.pList[i2].move)
+					cout << "duplicate move " << picker.pList[i1].move.ToUci() << endl;*/
+
+		sd.multiPV++;
+		if ((sd.multiPV > options.multiPV) || (sd.multiPV > picker.count)) {
+			//for(int i=0;i<sd.multiPV;i++)cout << "move " << (i+1) << " " << picker.pList[i].move.ToUci() << endl;
+			sd.multiPV = 1;
+			if (++sd.depth > MAX_PLY)
+				break;
+		}
 		if (chronos.flags & FMOVETIME)
 			if (sd.Ms() > chronos.movetime / 2)
 				break;
 		if (chronos.flags & FDEPTH)
-			if (sd.depth >= chronos.depth)
+			if (sd.depth > chronos.depth)
 				break;
 		if (chronos.flags & FNODES)
 			if (sd.nodes >= chronos.nodes)
 				break;
-		if ((picker.count == 1) && (sd.depth > 4))
+		if (abs(score) > VALUE_MATE_IN)
+			break;
+		if ((picker.count == 1) && (sd.depth > 8))
 			break;
 	}
 	ShowBestMove();

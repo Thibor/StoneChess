@@ -1,9 +1,20 @@
 #include "uci.h"
+#include "types.h"
 
 using namespace std;
 
+SOptions options;
+
+//Get index of key
+static int UciIndex(vector<string> list, string command) {
+	for (size_t n = 0; n < list.size() - 1; n++)
+		if (list[n] == command)
+			return n;
+	return -1;
+}
+
 //Get next word after uci command
-bool UciValue(vector<string> list, string command, string& value) {
+static bool UciValue(vector<string> list, string command, string& value) {
 	value = "";
 	for (size_t n = 0; n < list.size() - 1; n++)
 		if (list[n] == command) {
@@ -14,7 +25,7 @@ bool UciValue(vector<string> list, string command, string& value) {
 }
 
 //Get next word after uci command
-bool UciValues(vector<string> list, string command, string& value) {
+static bool UciValues(vector<string> list, string command, string& value) {
 	bool result = false;
 	value = "";
 	for (size_t n = 0; n < list.size(); n++) {
@@ -28,25 +39,25 @@ bool UciValues(vector<string> list, string command, string& value) {
 }
 
 //Performance test
-uint64_t Perft(int depth)
+static uint64_t Perft(int depth)
 {
 	uint64_t nodes = 0;
 	int count;
 	Move list[256];
-	position.MoveList(position.ColorUs(), list, count);
+	g_pos.MoveList(g_pos.ColorUs(), list, count);
 	if (depth == 1)
 		return count;
 	for (int i = 0; i < count; i++)
 	{
-		position.MakeMove(list[i]);
+		g_pos.MakeMove(list[i]);
 		nodes += Perft(depth - 1);
-		position.UnmakeMove(list[i]);
+		g_pos.UnmakeMove(list[i]);
 	}
 	return nodes;
 }
 
 //Displays a summary
-void ShowInfo(uint64_t time, uint64_t nodes) {
+static void ShowInfo(uint64_t time, uint64_t nodes) {
 	if (time < 1)
 		time = 1;
 	uint64_t nps = (nodes * 1000) / time;
@@ -58,13 +69,13 @@ void ShowInfo(uint64_t time, uint64_t nodes) {
 }
 
 //StartPerformance test
-void UciPerft(int depth)
+static void UciPerft(int depth)
 {
 	printf("Performance Test\n");
 	uint64_t time = 0;
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	position.SetFen();
+	g_pos.SetFen();
 	for (int d = 1; d <= depth; d++)
 	{
 		nodes += Perft(d);
@@ -77,12 +88,12 @@ void UciPerft(int depth)
 }
 
 //Start benchamrk test
-void UciBench(int depth) {
+static void UciBench(int depth) {
 	printf("Benchmark Test\n");
 	uint64_t time = 0;
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	position.SetFen();
+	g_pos.SetFen();
 	chronos.post = false;
 	chronos.flags = FDEPTH;
 	for (int d = 1; d <= depth; d++)
@@ -98,32 +109,38 @@ void UciBench(int depth) {
 	ShowInfo(time, nodes);
 }
 
-void UciEval() {
-	Value score = ShowEval();
-	printf("score %d\n", score);
+static void UciEval() {
+	ShowEval();
 }
 
-void UciTest() {
-	position.SetFen("r4rk1/ppp2ppp/1nnb4/8/1P1P3q/PBN1B2P/4bPP1/R2QR1K1 w - - 0 1");
+static void UciTest() {
+	Score i = S(-54, 2)*-3;
+	//cout << Mg(i) << " " << Eg(i) << endl;
+	//UciCommand("position startpos moves e2e4 e7e5 g1f3 b8c6 d2d4 g8f6 d4e5 f8b4 c2c3 e8g8 e5f6 d7d5 c3b4 c8g4 f1e2 d5d4 e1g1 d4d3 e2d3 c6e5 d3e2 d8d1 f1d1 g4f3 e2f3 f8d8 d1d8 a8d8 f3e2 a7a6 b1c3 c7c6 c1e3 b7b6 e3b6 d8d2 b2b3 c6c5 b4c5 h7h6 a1d1 d2d1 e2d1 e5c6 d1e2 g7g6 e2a6 g8f8 a2a3 f8g8 b3b4 g8h7 c3d5 h7h8 d5e7 c6e5 c5c6 e5c6 e7c6 g6g5 b6e3 h8h7 a6d3 h7h8 b4b5 h8h7 b5b6 h7g6 b6b7 g6f6 b7b8q f6g7 a3a4 g7h7 a4a5 g5g4 a5a6 f7f6 a6a7 f6f5 e4f5");
+	UciCommand("setoption name MultiPV value 4");
+	UciCommand("position fen 5r1k/6pp/1n2Q3/4p3/8/7P/PP4PK/R1B1q3 b - - 0 1");
+	//UciCommand("go movetime 3000");
+	UciCommand("go depth 3");
+	/*rootPos.SetFen("8/6K1/8/8/4Q3/2k5/8/8 w - - 0 20");
 	chronos.Reset();
 	//chronos.flags |= FINFINITE;
 	chronos.flags |= FMOVETIME;
-	chronos.movetime = 1000;
-	SearchIterate();
+	chronos.depth = 3;
+	SearchIterate();*/
 }
 
-void UciPonderhit()
+static void UciPonderhit()
 {
 	chronos.ponder = false;
 	chronos.flags &= ~FINFINITE;
 	sd.timeStart = chrono::steady_clock::now();
 }
 
-void UciQuit() {
+static void UciQuit() {
 	exit(0);
 }
 
-void UciStop() {
+static void UciStop() {
 	chronos.gameOver = true;
 }
 
@@ -132,7 +149,7 @@ void UciCommand(string str) {
 	str = trim(str);
 	string value;
 	vector<string> split{};
-	splitString(str, split, ' ');
+	SplitString(str, split, ' ');
 	Move m;
 	if (split.empty())
 		return;
@@ -140,21 +157,19 @@ void UciCommand(string str) {
 	if (command == "uci")
 	{
 		int delta = 50;
-		puts("id name StoneChess");
-		puts("id author Thibor Raven");
-		printf("option name hash type spin default 64 min 1 max 1024\n");
+		printf("id name %s\n",engineName.c_str());
+		printf("option name hash type spin default %d min 1 max 1024\n", options.hash);
+		printf("option name MultiPV type spin default 1 min 1 max 32\n");
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);
-		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmr - delta, options.lmr + delta);
 		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futility - delta, options.futility + delta);
 		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoring - delta, options.razoring + delta);
 		printf("option name null type spin default %d min %d max %d\n", options.nullMove, options.nullMove - delta, options.nullMove + delta);
-		printf("option name rfp type spin default %d min %d max %d\n", options.rfp, options.rfp - delta, options.rfp + delta);
+		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmr - delta, options.lmr + delta);
 		printf("option name contempt type spin default %d min %d max %d\n", options.contempt, options.contempt - delta, options.contempt + delta);
-		printf("option name aspiration type spin default %d min 16 max 128\n", options.aspiration);
+		printf("option name tempo type spin default %d min %d max %d\n", options.tempo, options.tempo - delta, options.tempo + delta);
+		printf("option name aspiration type spin default %d min %d max %d\n", options.aspiration, options.aspiration - delta, options.aspiration + delta);
 		printf("option name ponder type check default %s\n", options.ponder ? "true" : "false");
-		printf("option name material type string default %s\n", options.materialDel.c_str());
-		printf("option name outside_rank type string default %s\n", options.outsideRank.c_str());
-		printf("option name outside_file type string default %s\n", options.outsideFile.c_str());
+		printf("option name material type string default %s\n", options.material.c_str());
 		printf("option name mobility type string default %s\n", options.mobility.c_str());
 		printf("option name passed type string default %s\n", options.passed.c_str());
 		printf("option name pawn type string default %s\n", options.pawn.c_str());
@@ -162,7 +177,9 @@ void UciCommand(string str) {
 		printf("option name king type string default %s\n", options.king.c_str());
 		printf("option name outpost type string default %s\n", options.outpost.c_str());
 		printf("option name pair type string default %s\n", options.pair.c_str());
-		printf("option name tempo type string default %s\n", options.tempo.c_str());
+		printf("option name tropism type string default %s\n", options.tropism.c_str());
+		printf("option name outFile type string default %s\n", options.outFile.c_str());
+		printf("option name outRank type string default %s\n", options.outRank.c_str());
 		puts("uciok");
 	}
 	else if (command == "isready")
@@ -173,29 +190,26 @@ void UciCommand(string str) {
 		InitSearch();
 	}
 	else if (command == "position") {
-		bool bfen = false;
-		bool bmov = false;
-		int i = 0;
+		int mark = 0;
 		string fen = "";
 		vector<string> moves = {};
-		while (i < split.size()) {
-			if (bfen)
+		for (int i = 1; i < split.size(); i++) {
+			if (mark == 1)
 				fen += ' ' + split[i];
-			if (bmov)
+			if (mark == 2)
 				moves.push_back(split[i]);
 			if (split[i] == "fen")
-				bfen = true;
+				mark = 1;
 			else if (split[i] == "moves")
-				bmov = true;
-			i++;
+				mark = 2;
 		}
 		fen = trim(fen);
-		position.SetFen(fen == "" ? DEFAULT_FEN : fen);
+		g_pos.SetFen(fen == "" ? DEFAULT_FEN : fen);
 		for (string uci : moves) {
-			CMoveList list = CMoveList(position);
+			CMoveList list = CMoveList(g_pos);
 			for (Move m : list)
 				if (m.ToUci() == uci)
-					position.MakeMove(m);
+					g_pos.MakeMove(m);
 		}
 	}
 	else if (command == "go") {
@@ -207,6 +221,14 @@ void UciCommand(string str) {
 			if (com2 == "ponder") {
 				chronos.ponder = true;
 				chronos.flags |= FINFINITE;
+			}
+			int index = UciIndex(split, "searchmoves");
+			if (index > 0) {
+				CMoveList list = CMoveList(g_pos);
+				for (int n = index + 1; n < split.size(); n++)
+					for (Move m : list)
+						if (m.ToUci() == split[n])
+							chronos.rootMoves.push_back(m);
 			}
 		}
 		if (UciValue(split, "wtime", value))
@@ -249,14 +271,17 @@ void UciCommand(string str) {
 			chronos.flags |= FMOVETIME;
 			chronos.movetime = stoi(value);
 		}
+		if (UciValue(split, "searchmoves", value))
+		{
+		}
 		if (!chronos.flags)
 			chronos.flags |= FINFINITE;
 		if (chronos.flags & FTIME) {
 			chronos.flags |= FMOVETIME;
 			if (chronos.movestogo)
-				chronos.movetime = chronos.time[position.ColorUs()] / chronos.movestogo;
+				chronos.movetime = chronos.time[g_pos.ColorUs()] / chronos.movestogo;
 			else
-				chronos.movetime = chronos.time[position.ColorUs()] / 32 + chronos.inc[position.ColorUs()] / 2;
+				chronos.movetime = chronos.time[g_pos.ColorUs()] / 32 + chronos.inc[g_pos.ColorUs()] / 2;
 		}
 		SearchIterate();
 	}
@@ -271,48 +296,51 @@ void UciCommand(string str) {
 		string name;
 		bool isValue = UciValues(split, "value", value);
 		if (isValue && UciValue(split, "name", name)) {
+			name = StrToLower(name);
 			if (name == "ponder")
 				options.ponder = value == "true";
 			else if (name == "hash")
 				tt.Resize(stoi(value));
-			else if (name == "contempt")
-				options.contempt = stoi(value) * 10;
-			else if (StrToLower(name) == "aspiration")
-				options.aspiration = stoi(value);
-			else if (StrToLower(name) == "uci_elo")
+			else if (name == "multipv")
+				options.multiPV = stoi(value);
+			else if (name == "uci_elo")
 				options.elo = stoi(value);
-			else if (StrToLower(name) == "lmr")
-				options.lmr = stoi(value);
-			else if (StrToLower(name) == "futility")
+			else if (name == "futility")
 				options.futility = stoi(value);
-			else if (StrToLower(name) == "razoring")
+			else if (name == "razoring")
 				options.razoring = stoi(value);
-			else if (StrToLower(name) == "null")
+			else if (name == "null")
 				options.nullMove = stoi(value);
-			else if (StrToLower(name) == "rfp")
-				options.rfp = stoi(value);
-			else if (StrToLower(name) == "material")
-				options.materialDel = value;
-			else if (StrToLower(name) == "outside_rank")
-				options.outsideRank = value;
-			else if (StrToLower(name) == "outside_file")
-				options.outsideFile = value;
-			else if (StrToLower(name) == "mobility")
+			else if (name == "lmr")
+				options.lmr = stoi(value);
+			else if (name == "aspiration")
+				options.aspiration = stoi(value);
+			else if (name == "contempt")
+				options.contempt = stoi(value);
+			else if (name == "tempo")
+				options.tempo = stoi(value);
+			else if (name == "material")
+				options.material = value;
+			else if (name == "mobility")
 				options.mobility = value;
-			else if (StrToLower(name) == "passed")
+			else if (name == "outfile")
+				options.outFile = value;
+			else if (name == "outrank")
+				options.outRank = value;
+			else if (name == "passed")
 				options.passed = value;
-			else if (StrToLower(name) == "pawn")
+			else if (name == "pawn")
 				options.pawn = value;
-			else if (StrToLower(name) == "rook")
+			else if (name == "rook")
 				options.rook = value;
-			else if (StrToLower(name) == "king")
+			else if (name == "king")
 				options.king = value;
-			else if (StrToLower(name) == "outpost")
+			else if (name == "outpost")
 				options.outpost = value;
-			else if (StrToLower(name) == "pair")
+			else if (name == "pair")
 				options.pair = value;
-			else if (StrToLower(name) == "tempo")
-				options.tempo = value;
+			else if (name == "tropism")
+				options.tropism = value;
 		}
 	}
 	else if (command == "bench") {
@@ -329,12 +357,23 @@ void UciCommand(string str) {
 	}
 	else if (command == "eval")
 		UciEval();
+	else if (command == "print")
+		g_pos.PrintBoard();
 	else if (command == "test")
 		UciTest();
 }
 
 //main uci loop
 void UciLoop() {
+	//UciCommand("position fen 3k4/5Q2/3Np1p1/1pPp4/6n1/P3PN2/5PPP/R3K2R b KQ - 0 25");
+	//std::cout << position << std::endl;
+	//UciCommand("go infinite");
+	/*Score s = S(3200, -3200);
+	//Score s = S(0, -32768);
+	s -= S(100, -100)*2;
+	Value mg = Mg(s);
+	Value eg = Eg(s);
+	cout << mg << " " << eg << endl;*/
 	string line;
 	while (true) {
 		getline(cin, line);

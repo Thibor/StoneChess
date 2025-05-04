@@ -5,6 +5,7 @@
 #include <utility>
 #include "tables.h"
 #include "types.h"
+#include "move.h"
 
 //A psuedorandom number generator
 //Source: Stockfish
@@ -25,6 +26,13 @@ public:
 	//Generate psuedorandom number with only a few set bits
 	template<typename T> T sparse_rand() { return T(rand64() & rand64() & rand64()); }
 };
+
+/*U64 rand64() {
+	static U64 next = 1;
+
+	next = next * 1103515245 + 12345;
+	return next;
+}*/
 
 
 namespace zobrist {
@@ -48,23 +56,24 @@ struct UndoInfo {
 	Hash hash;
 
 	int move50;
+	int phase;
 
-	constexpr UndoInfo() : hash(0), move50(0), entry(0), captured(NO_PIECE), epsq(SQ_NONE) {}
+	constexpr UndoInfo() : hash(0), move50(0),phase(0), entry(0), captured(NO_PIECE), epsq(SQ_NONE) {}
 
 	//This preserves the entry bitboard across moves
 	constexpr UndoInfo(const UndoInfo& prev) :
-		hash(0), move50(0), entry(prev.entry), captured(NO_PIECE), epsq(SQ_NONE) {}
+		hash(0), move50(0),phase(0), entry(prev.entry), captured(NO_PIECE), epsq(SQ_NONE) {}
 };
 
 class Position {
-private:
+public:
+	//int phaseVal[PIECE_NB] = { 0,1,1,2,4,0,0,0,0,1,1,2,4 };
 	//The side whose turn it is to play next
-	Color side_to_play;
+	Color color;
 	//The zobrist hash of the position, which can be incrementally updated and rolled back after each make/unmake
 	Hash hash;
 	//A mailbox representation of the board. Stores the piece occupying each square on the board
 	Piece board[SQUARE_NB];
-public:
 	int move50;
 	int historyIndex;
 
@@ -72,7 +81,7 @@ public:
 	Bitboard piece_bb[PIECE_NB];
 
 	//The history of non-recoverable information
-	UndoInfo history[512];
+	UndoInfo history[512] = {};
 
 	//The bitboard of enemy pieces that are currently attacking the king, updated whenever generate_moves() is called
 	Bitboard checkers;
@@ -100,8 +109,10 @@ public:
 	inline Bitboard Pieces(PieceType pt)const;
 	inline Bitboard Pieces(PieceType pt, Color c) const;
 	inline Piece Board(Square sq) const { return board[sq]; }
-	inline Color ColorUs() const { return side_to_play; }
-	inline Color ColorEn() const { return ~side_to_play; }
+	inline Color ColorUs() const { return color; }
+	inline Color ColorEn() const { return ~color; }
+	inline bool ColorBlack() const { return color; }
+	inline bool ColorWhite() const { return ~color; }
 	inline Bitboard East(const Bitboard bb) { return (bb << 1) & ~0x0101010101010101ULL; }
 	inline Bitboard West(const Bitboard bb) { return (bb >> 1) & ~0x8080808080808080ULL; }
 	inline Bitboard North(const Bitboard bb) { return bb << 8; }
@@ -112,10 +123,11 @@ public:
 	inline Bitboard SouthEast(const Bitboard bb) { return South(East(bb)); }
 	void MoveList(Color color, Move* list, int& count, bool quiet = true);
 	void MoveList(Move* list, int& count, bool quiet = true);
-	bool InCheck(Color color);
-	bool InCheck();
+	//bool InCheck(Color color) const;
+	bool InCheck() const;
+	//inline bool InCheck() { return checkers; };
 	bool IsLegal(Move m);
-	bool IsRepetition();
+	bool IsRepetition() const;
 	inline int HistoryIndex() const { return historyIndex; }
 	inline Hash GetHash() const { return hash; }
 	inline Bitboard DiagonalSliders(Color c) const;
@@ -128,16 +140,16 @@ public:
 	void UnmakeMove(const Move m);
 	inline bool NotOnlyPawns()const;
 	Move* GenerateMoves(Color Us, Move* list, bool quiet = true);
-	friend std::ostream& operator<<(std::ostream& os, const Position& p);
+	void PrintBoard() const;
 	Position& operator=(const Position&) = delete;
 	inline bool operator==(const Position& other) const { return hash == other.hash; }
 };
 
-extern Position position;
+extern Position g_pos;
 
 //Return true if active player got major or minor pieces
 inline bool Position::NotOnlyPawns()const {
-	return side_to_play == WHITE ?
+	return color == WHITE ?
 		piece_bb[WHITE_KNIGHT] || piece_bb[WHITE_BISHOP] || piece_bb[WHITE_ROOK] || piece_bb[WHITE_QUEEN] :
 		piece_bb[BLACK_KNIGHT] || piece_bb[BLACK_BISHOP] || piece_bb[BLACK_ROOK] || piece_bb[BLACK_QUEEN];
 }

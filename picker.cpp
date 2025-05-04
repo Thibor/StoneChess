@@ -1,60 +1,45 @@
 #include "picker.h"
 
 void Picker::Fill() {
-	index = 0;
+	best = 0;
 	for (int n = 0; n < count; n++) {
 		Move m = mList[n];
 		pList[n].move = m;
-		pList[n].score = Eval(m,pList[n].see);
+		pList[n].value = Eval(m);
 	}
 }
 
 PickerE Picker::Pick(int index) {
-	int bstI = index;
-	Value bstS = pList[bstI].score;
-	for (int n = index + 1; n < count; n++) {
-		Value curS = pList[n].score;
-		if (bstS < curS) {
-			bstS = curS;
-			bstI = n;
+	if (index >= best) {
+		int bestI = index;
+		Value bestV = pList[bestI].value;
+		for (int n = index + 1; n < count; n++) {
+			Value curV = pList[n].value;
+			if (bestV < curV) {
+				bestV = curV;
+				bestI = n;
+			}
 		}
-	}
-	if (index != bstI) {
-		PickerE e = pList[index];
-		pList[index] = pList[bstI];
-		pList[bstI] = e;
+		if (index != bestI) {
+			PickerE e = pList[index];
+			pList[index] = pList[bestI];
+			pList[bestI] = e;
+		}
 	}
 	return pList[index];
 }
 
-void Picker::SetBest(int index) {
-	PickerE e = pList[index];
-	for (int i = index; i > 0; i--)
-		pList[i] = pList[i - 1];
-	pList[0] = e;
-}
-
-void Picker::Sort() {
-	for (int n = 0; n < count - 1; n++)
-		Pick(n);
-}
-
-int Picker::GetIndex(Move m) {
-	for (int n = 0; n < count; n++)
-		if (pList[n].move == m)
-			return n;
-	return -1;
-}
-
-bool Picker::SetMove(Move m) {
-	int i = GetIndex(m);
-	sd.moveSet++;
-	if (i < 0)
+bool Picker::SetBest(Move m) {
+	if (m == MOVE_NONE)
 		return false;
-	sd.moveOk++;
-	index++;
-	for (int n = i; n > 0; n--)
-		pList[n] = pList[n - 1];
-	pList[0].move = m;
-	return true;
+	sd.moveSet++;
+	for (int n = best; n < count; n++)
+		if (pList[n].move == m) {
+			PickerE pe = pList[n];
+			pList[n]=pList[best];
+			pList[best++]=pe;
+			sd.moveOk++;
+			return true;
+		}
+	return false;
 }
