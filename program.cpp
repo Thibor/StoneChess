@@ -35,6 +35,7 @@ void PrintSummary(uint64_t time, uint64_t nodes) {
 }
 
 int main() {
+	//setbuf(stdout, 0);
 	PrintWelcome();
 	InitImput();
 	InitEval();

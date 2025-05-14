@@ -210,7 +210,7 @@ constexpr Piece operator~(Piece pc) {
 
 
 const Bitboard bbLight = 0xaa55aa55aa55aa55ull;
-const Bitboard bbDark = 0x55aa55aa55aa55aaull;
+const Bitboard bbDark =  0x55aa55aa55aa55aaull;
 
 constexpr Bitboard FileABB = 0x0101010101010101ULL;
 constexpr Bitboard FileBBB = FileABB << 1;
@@ -246,6 +246,7 @@ constexpr Bitboard KingFlank[FILE_NB] = {
 
 //PIECE_STR[piece] is the algebraic chess representation of that piece
 const std::string PIECE_STR = "PNBRQK~>pnbrqk ";
+const std::string PIECE_PRT = "ANBRQK~>anbrqk ";
 
 //The FEN of the starting position
 const std::string DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";

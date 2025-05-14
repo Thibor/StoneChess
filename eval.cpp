@@ -6,6 +6,10 @@ using namespace std;
 
 enum Tracing { NO_TRACE, TRACE };
 
+enum Term { PASSED = 6, STRUCTURE, TERM_NB };
+
+Score scores[TERM_NB][2];
+
 
 Score mobility[PT_NB] = {};
 Value kingShield1 = VALUE_ZERO;
@@ -23,22 +27,21 @@ Score pawnConnected = SCORE_ZERO;
 Score pawnDoubled = SCORE_ZERO;
 Score pawnIsolated = SCORE_ZERO;
 Score pawnBackward = SCORE_ZERO;
+Score pawnProtection[PT_NB] = {};
 Score rookOpen = SCORE_ZERO;
 Score rookSemiOpen = SCORE_ZERO;
-Score scorePair[PT_NB] = {};
-Score scoreTropism[PT_NB] = {};
+Score scoreBishopPair = SCORE_ZERO;
+Score scoreBishopBad = SCORE_ZERO;
 
-const Score outsideFileOrg[PT_NB] = {D(-1,-8), D(-6, -2), D(-3,-6), D(-4, -2), D(-4, -1), D(-1, 7)};
 Score outsideFile[PT_NB] = {};
-const Score outsideRankOrg[PT_NB] = { D(0,8), D(-16, -1), D(-16, -6), D(5, 4), D(-10,10), D(2, 16) };
 Score outsideRank[PT_NB] = {};
 
 const int chance[PT_NB] = { 3, 1, 2, 3, 3, 0 };
 Score bonus[PT_NB][RANK_NB][FILE_NB] = {};
 Value bonusMax[PT_NB][RANK_NB][FILE_NB] = {};
 
-Score contempt = SCORE_ZERO;
-Value tempo = VALUE_ZERO;
+//Score contempt = SCORE_ZERO;
+Score tempo = SCORE_ZERO;
 
 int phase = 0;
 int aPhase[PT_NB] = { 0,1,1,2,4,0 };
@@ -65,6 +68,10 @@ static inline int OutsideRank(Rank rank) {
 	return abs(rank * 2 - 7) / 2 - 2;
 }
 
+static inline int PassedRank(Rank rank) {
+	return (rank - 1) * (rank - 1);
+}
+
 static inline int Centrality(Rank rank, File file) {
 	return 3 - abs(rank * 2 - 7) / 2 - abs(file * 2 - 7) / 2;
 }
@@ -86,7 +93,14 @@ static Value ValueMax(Score score) {
 	return max(Mg(score), Eg(score));
 }
 
+static Value ScoreToValue(Score score) {
+	int mgWeight = phase;
+	int egWeight = 24 - mgWeight;
+	return (Value)(mgWeight * (int)Mg(score) + egWeight * (int)Eg(score)) / 24;
+}
+
 void InitEval() {
+	tempo = S(options.tempo, options.tempo/2);
 	int mg, eg;
 	int v, d;
 	srand(time(NULL));
@@ -102,8 +116,8 @@ void InitEval() {
 
 	SplitInt(options.mobility, split, ' ');
 	for (PieceType pt = KNIGHT; pt < KING; ++pt) {
-		mg = GetVal(split, (pt-1) * 2);
-		eg = GetVal(split, (pt-1) * 2 + 1);
+		mg = GetVal(split, (pt - 1) * 2);
+		eg = GetVal(split, (pt - 1) * 2 + 1);
 		mobility[pt] = S(mg, eg);
 	}
 
@@ -119,7 +133,12 @@ void InitEval() {
 		eg = GetVal(split, pt * 2 + 1);
 		outsideRank[pt] = S(mg, eg);
 	}
-
+	SplitInt(options.pawnProtection, split, ' ');
+	for (int pt = PAWN; pt < PT_NB; pt++) {
+		mg = GetVal(split, pt * 2);
+		eg = GetVal(split, pt * 2 + 1);
+		pawnProtection[pt] = S(mg, eg);
+	}
 	SplitInt(options.king, split, ' ');
 	kingShield1 = (Value)GetVal(split, 0);
 	kingShield2 = (Value)GetVal(split, 1);
@@ -142,19 +161,13 @@ void InitEval() {
 		outpost[1][s] = score;
 	}
 
-	SplitInt(options.tropism, split, ' ');
-	for (PieceType pt = KNIGHT; pt < KING; ++pt) {
-		v = GetVal(split, (pt - 1) * 2);
-		d = GetVal(split, (pt - 1) * 2 + 1);
-		scoreTropism[pt] = D(v, d);
-	}
-
-	SplitInt(options.pair, split, ' ');
-	for (int n = 0; n < 3; n++) {
-		v = GetVal(split, n * 2);
-		d = GetVal(split, n * 2 + 1);
-		scorePair[n + 1] = D(v, d);
-	}
+	SplitInt(options.bishop, split, ' ');
+	mg = GetVal(split, 0);
+	eg = GetVal(split, 1);
+	scoreBishopPair = S(mg, eg);
+	mg = GetVal(split, 2);
+	eg = GetVal(split, 3);
+	scoreBishopBad = S(mg, eg);
 
 	SplitInt(options.passed, split, ' ');
 	passedFile = (Value)GetVal(split, 0);
@@ -278,22 +291,33 @@ Value Eval(Move m) {
 	return value + Eval(color, to, pt);
 }
 
-static void Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
+static Score TotalScore(int c) {
+	Score score = SCORE_ZERO;
+	for (int n = 0; n < TERM_NB; n++)
+		score += scores[n][c];
+	return score;
+}
+
+//template<Tracing T>
+static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 	int cw = 0;
 	Color color = esUs.color;
 	Bitboard bbAll = pos.AllPieces();
-	Bitboard bbPawnsUs = pos.piece_bb[MakePiece(color,PAWN)];
-	Bitboard bbPawnsEn = pos.piece_bb[MakePiece(~color,PAWN)];
+	Bitboard bbPawnsUs = pos.piece_bb[MakePiece(color, PAWN)];
+	Bitboard bbPawnsEn = pos.piece_bb[MakePiece(~color, PAWN)];
 	Direction north = RelativeDir(color, NORTH);
 	Direction south = RelativeDir(color, SOUTH);
-	const Bitboard bbProtected = PawnAttacks(color, bbPawnsUs);
-	const Bitboard bbAtacked = PawnAttacks(~color, bbPawnsEn);
-	Bitboard bbConnected = bbProtected | Shift(south, bbProtected);
+	const Bitboard bbDefense = PawnAttacks(color, bbPawnsUs);
+	const Bitboard bbAttack = PawnAttacks(~color, bbPawnsEn);
+	Bitboard bbConnected = bbDefense | Shift(south, bbDefense);
 	bbConnected |= Shift(south, bbConnected);
-	const Bitboard bbSpan = Span(~color, bbAtacked);
+	const Bitboard bbSpan = Span(~color, bbAttack);
 	const Bitboard bbOutpostRanks = color ? Rank5BB | Rank4BB | Rank3BB : Rank4BB | Rank5BB | Rank6BB;
+	Bitboard bbOutpost = (~bbSpan) & bbOutpostRanks;
+	//PrintBitboard(bbOutpost);
 	for (PieceType pt = PAWN; pt < PT_NB; ++pt) {
-		Bitboard copy = pos.piece_bb[MakePiece(color,pt)];
+		Piece piece = MakePiece(color, pt);
+		Bitboard copy = pos.piece_bb[piece];
 		while (copy) {
 			esUs.piece[pt]++;
 			cw += chance[pt];
@@ -302,83 +326,93 @@ static void Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 			const Rank r = RankOf(sq);
 			const Rank rank = RelativeRank(color, r);
 			const File file = FileOf(sq);
-			esUs.scorePiece[pt] += bonus[pt][rank][file];
+			scores[pt][color] += bonus[pt][rank][file];
 			const Bitboard bbPiece = 1ULL << sq;
+			if (bbDefense & bbPiece)
+				scores[pt][color] += pawnProtection[pt];
 			if (pt == PAWN) {
-				//passed pawn
+				//passed pawns
 				if (!(bbPassedPawnMask[color][sq] & bbPawnsEn)) {
-					Value v = passedFile * OutsideFile(file);
-					v += floor(pow(((int)rank - 1.0) / 5.0, 2.0) * (int)passedRank);
+					Value passed = passedFile * OutsideFile(file);
+					passed += passedRank * PassedRank(rank);
 					if (Shift(RelativeDir(color, NORTH), bbPiece) & pos.AllPieces(~color))
-						v += passedBlocked;
-					v += passedKU * (rank - 1) * Distance(esUs.king, sq);
-					v += passedKE * (rank - 1) * Distance(esEn.king, sq);
-					esUs.scorePawnPassed += S(v >> 1, v);
+						passed += passedBlocked;
+					Square sq2 = Square(sq + (color == WHITE ? 8 : -8));
+					passed += passedKU * Distance(esUs.king, sq2);
+					passed += passedKE * Distance(esEn.king, sq2);
+					scores[PASSED][color] += S(passed >> 1, passed);
 				}
+				//structure pawns
+				Score structure = SCORE_ZERO;
 				if (bbPawnsUs & bbForwardFiles[color][sq])
-					esUs.scorePawnDoubled += pawnDoubled;
-				if (bbPiece & bbConnected)
-					esUs.scorePawnConnected += pawnConnected;
+					structure += pawnDoubled;
+				if (bbPiece & bbConnected) {
+					structure += pawnConnected;
+				}
 				else {
 					Bitboard bb = bbPawnsUs & bbAdjacentFiles[file];
 					if (!bb)
-						esUs.scorePawnIsolated += pawnIsolated;
-					else if (bb & bbForwardRank[color][r])
-						esUs.scorePawnBackward += pawnBackward;
+						structure += pawnIsolated;
+					else {
+						bb = Shift(north, bbDefense) & bbAdjacentFiles[file];
+						if (bb & bbPawnsUs && bb & bbPawnsEn)
+							structure += pawnBackward;
+					}
 				}
+				scores[STRUCTURE][color] += structure;
 			}
 			else if (pt == KING) {
-				esUs.king = sq;
-				Bitboard bbShield1 = Shift(north, bbPiece);
-				bbShield1 |= Shift(EAST, bbShield1) | Shift(WEST, bbShield1);
-				Bitboard bbShield2 = Shift(north, bbShield1);
-				Value v1 = kingShield1 * SparsePopCount(bbShield1 & bbPawnsUs);
-				Value v2 = kingShield2 * SparsePopCount(bbShield2 & bbPawnsUs);
-				esUs.scorePiece[pt] += S(v1, 0);
-				esUs.scorePiece[pt] += S(v2, 0);
+				if (file < 3 || file>4) {
+					Bitboard bbShield1 = Shift(north, bbPiece);
+					bbShield1 |= Shift(EAST, bbShield1) | Shift(WEST, bbShield1);
+					Bitboard bbShield2 = Shift(north, bbShield1);
+					Value v1 = kingShield1 * SparsePopCount(bbShield1 & bbPawnsUs);
+					Value v2 = kingShield2 * SparsePopCount(bbShield2 & bbPawnsUs);
+					scores[pt][color] += S(v1 + v2, 0);
+				}
 			}
 			else {
-				int count = PopCount(attacks(pt, sq, bbAll) & ~bbAtacked);
-				esUs.scoreMobility += mobility[pt] * count;
-				esUs.scoreTropism += scoreTropism[pt] * Tropism(sq, esEn.king);
+				scores[pt][color] += mobility[pt] * PopCount(attacks(pt, sq, bbAll) & ~bbAttack);
 				if (pt == ROOK) {
 					const Bitboard bbFile = 0x101010101010101ULL << file;
 					if (!(bbFile & bbPawnsUs)) {
 						if (!(bbFile & bbPawnsEn))
-							esUs.scorePiece[pt] += rookOpen;
+							scores[pt][color] += rookOpen;
 						else
-							esUs.scorePiece[pt] += rookSemiOpen;
+							scores[pt][color] += rookSemiOpen;
 					}
 				}
 				else  if ((pt == KNIGHT) || (pt == BISHOP)) {
-					Bitboard bbOutpost = (~bbSpan & bbOutpostRanks);
 					if (bbOutpost & bbPiece)
-						esUs.scorePiece[pt] += outpost[pt == BISHOP][bbProtected && bbPiece] * 2;
+						scores[pt][color] += outpost[pt == BISHOP][bbDefense && bbPiece] * 2;
 					else if (bbOutpost & attacks(pt, sq, pos.AllPieces()))
-						esUs.scorePiece[pt] += outpost[pt == BISHOP][bbProtected && bbPiece];
+						scores[pt][color] += outpost[pt == BISHOP][bbDefense && bbPiece];
 				}
 			}
 		}
 	}
-	for (PieceType pt = KNIGHT; pt < QUEEN; ++pt)if (esUs.piece[pt] > 1)esUs.scorePair += scorePair[pt];
+	if (esUs.piece[BISHOP]) {
+		Piece piece = MakePiece(color, BISHOP);
+		Bitboard bbPieces = pos.piece_bb[piece];
+		bool bw = bbPieces & bbLight;
+		bool bb = bbPieces & bbDark;
+		if (bw && bb)
+			scores[BISHOP][color] += scoreBishopPair;
+		else {
+			if (bw)
+				scores[BISHOP][color] += scoreBishopBad * SparsePopCount(bbPawnsUs & bbLight);
+			else
+				scores[BISHOP][color] += scoreBishopBad * SparsePopCount(bbPawnsUs & bbDark);
+		}
+	}
 	esUs.chance = cw > 2;
-	if (esUs.chance)esUs.score += S(100, 100);
+	Score score = esUs.chance ? S(100, 100) : SCORE_ZERO;
+	return score + TotalScore(color);
 }
 
+//template<typename T> void PrintE(T t) {cout << left << setw(8) << setfill(' ') << t;}
 
-static Score TotalScore(SEvalSide es) {
-	Score result = es.score + es.scorePawnPassed + es.scorePawnConnected + es.scorePawnDoubled + es.scorePawnIsolated + es.scorePawnBackward + es.scoreMobility + es.scorePair + es.scoreTropism;
-	for (Score s : es.scorePiece)
-		result += s;
-	return result;
-}
-
-template<typename T> void PrintE(T t) {
-	cout << left << setw(8) << setfill(' ') << t;
-}
-
-static string ShowScore(Score s) {
-	string result = std::format("({} {})", (int)Mg(s), (int)Eg(s));
+static string ShowScore(string result) {
 	int len = 16 - result.length();
 	if (len < 0)
 		len = 0;
@@ -386,16 +420,30 @@ static string ShowScore(Score s) {
 	return result;
 }
 
-static void ShowScore(string name, Score sw, Score sb) {
+static string ShowScore(Score s) {
+	Value v = ScoreToValue(s);
+	return ShowScore(to_string(v) + " (" + to_string(Mg(s)) + " " + to_string(Eg(s)) + ")");
+}
+
+/*static void ShowScore(string name, Score sw, Score sb) {
 	int len = 16 - name.length();
 	if (len < 0)
 		len = 0;
 	name.append(len, ' ');
-	std::cout << name << ShowScore(sw) << " " << ShowScore(sb) << " " << ShowScore(sw - sb) << endl;
+	std::cout << name << ShowScore(sw) << " " << ShowScore(sb) << " " << ShowScore(sw - sb);
+	PrintE(ScoreToValue(sw - sb));
+	std::cout << endl;
+}*/
+
+static void PrintTerm(string name, int idx) {
+	Score sw = scores[idx][WHITE];
+	Score sb = scores[idx][BLACK];
+	std::cout << ShowScore(name) << ShowScore(sw) << " " << ShowScore(sb) << " " << ShowScore(sw - sb) << endl;
 }
 
 template<Tracing T>
 Value Trace(Position& pos) {
+	std::memset(scores, 0, sizeof(scores));
 	phase = 0;
 	SEvalSide esW = {};
 	SEvalSide esB = {};
@@ -403,21 +451,18 @@ Value Trace(Position& pos) {
 	esB.color = BLACK;
 	esW.king = bsf(pos.piece_bb[WHITE_KING]);
 	esB.king = bsf(pos.piece_bb[BLACK_KING]);
-	Eval(pos, esW, esB);
-	Eval(pos, esB, esW);
+	Score sw = Eval(pos, esW, esB);
+	Score sb = Eval(pos, esB, esW);
 	if (phase > 24)
 		phase = 24;
 	if (!esW.chance && !esB.chance)
 		return VALUE_ZERO;
-	Score score = TotalScore(esW) - TotalScore(esB) + contempt;
-	//pos.phase = 4;
-	int mgWeight = phase;
-	int egWeight = 24 - mgWeight;
-	int i = (mgWeight * (int)Mg(score) + egWeight * (int)Eg(score)) / 24;
-	Value v = (Value)((i * (100 - pos.move50)) / 100);
+	//Score score = tempo + sw - sb + contempt;
+	Score score = sw - sb +(pos.ColorWhite() ? tempo : -tempo);
+	Value v = ScoreToValue(score);
 	if ((!esW.chance && score > 0) || (!esB.chance && score < 0))
 		return VALUE_ZERO;
-	v = (pos.ColorWhite() ? v : -v) + tempo;
+	v = (pos.ColorWhite() ? v : -v);
 	if (T) {
 		//pos.Phase();
 		Picker picker;
@@ -426,24 +471,17 @@ Value Trace(Position& pos) {
 		std::cout << "moves:" << endl;
 		for (int n = 0; n < picker.count; n++) {
 			PickerE pe = picker.Pick(n);
-			cout << pe.move << right << setfill(' ') << setw(8) << pe.value << setw(8) << See(pe.move) << endl;
+			cout << pe.move << " " << pe.value << " " << See(pe.move) << endl;
 		}
 		pos.PrintBoard();
-		ShowScore("pawn connected", esW.scorePawnConnected, esB.scorePawnConnected);
-		ShowScore("pawn isolated", esW.scorePawnIsolated, esB.scorePawnIsolated);
-		ShowScore("pawn doubled", esW.scorePawnDoubled, esB.scorePawnDoubled);
-		ShowScore("pawn backward", esW.scorePawnBackward, esB.scorePawnBackward);
-		ShowScore("pawn passed", esW.scorePawnPassed, esB.scorePawnPassed);
-		ShowScore("pawn", esW.scorePiece[0], esB.scorePiece[0]);
-		ShowScore("knight", esW.scorePiece[1], esB.scorePiece[1]);
-		ShowScore("bishop", esW.scorePiece[2], esB.scorePiece[2]);
-		ShowScore("rook", esW.scorePiece[3], esB.scorePiece[3]);
-		ShowScore("queen", esW.scorePiece[4], esB.scorePiece[4]);
-		ShowScore("king", esW.scorePiece[5], esB.scorePiece[5]);
-		ShowScore("mobility", esW.scoreMobility, esB.scoreMobility);
-		ShowScore("pair", esW.scorePair, esB.scorePair);
-		ShowScore("tropism", esW.scoreTropism, esB.scoreTropism);
-		ShowScore("total", TotalScore(esW), TotalScore(esB));
+		PrintTerm("Pawn", PAWN);
+		PrintTerm("Knight", KNIGHT);
+		PrintTerm("Bishop", BISHOP);
+		PrintTerm("Rook", ROOK);
+		PrintTerm("Queen", QUEEN);
+		PrintTerm("King", KING);
+		PrintTerm("Passed", PASSED);
+		PrintTerm("Structure", STRUCTURE);
 		std::cout << "phase " << phase << endl;
 		std::cout << "score " << v << endl;
 	}
@@ -455,7 +493,7 @@ Value ShowEval() {
 		//position.SetFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 		//position.SetFen("4r1k1/2pp1pp1/2b2q1p/rp2p3/4P3/P1PPQN1P/5PP1/R4RK1 w - - 0 20");
 	//position.SetFen("3k4/5Q2/3Np1p1/1pPp4/6n1/P3PN2/5PPP/R3K2R b KQ - 0 25");
-	g_pos.SetFen("7K/8/8/8/4Q3/2k5/8/8 b - - 0 20");
+	g_pos.SetFen("1k6/1pp1R1p1/4P3/4b1P1/5p2/3q4/1P2R1PK/8 b - - 0 1");
 	return (Trace<TRACE>(g_pos));
 }
 

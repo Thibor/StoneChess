@@ -29,7 +29,7 @@ void Position::PrintBoard() const {
 		cout << s << " " << i / 8 + 1 << " ";
 		for (int j = 0; j < 8; j++) {
 			Piece piece = board[i + j];
-			cout << "| " << PIECE_STR[piece] << " ";
+			cout << "| " << PIECE_PRT[piece] << " ";
 		}
 		cout << "| " << i / 8 + 1 << endl;
 	}
@@ -75,7 +75,7 @@ inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard b, Move* list) {
 	return list;
 }
 
-constexpr Position::Position() : piece_bb{ 0 }, color(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0) {
+constexpr Position::Position() : piece_bb{ 0 }, color(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0),move50(0) {
 	//Sets all squares on the board as empty
 	for (int i = 0; i < 64; i++)
 		board[i] = NO_PIECE;

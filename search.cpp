@@ -5,8 +5,6 @@ int RAZOR_MARGIN;
 int NULL_MARGIN;
 int LMR_MARGIN;
 int ASPIRATION;
-int CONTEMPT;
-int TEMPO;
 
 int FutilityMoveCounts[2][16]; // [improving][depth]
 int Reductions[2][2][64][64];  // [pv][improving][depth][moveNumber]
@@ -31,8 +29,6 @@ void InitSearch() {
 	NULL_MARGIN = options.nullMove;
 	LMR_MARGIN = options.lmr;
 	ASPIRATION = options.aspiration;
-	CONTEMPT = options.contempt;
-	TEMPO = options.tempo;
 	tt.Resize(options.hash);
 
 	for (int imp = 0; imp <= 1; ++imp)
@@ -492,9 +488,6 @@ void SearchIterate() {
 			picker.best = 0;
 		}
 	}
-	tempo = Value(TEMPO);
-	int ct = CONTEMPT;
-	contempt = (g_pos.ColorWhite() ? S(ct, ct / 2) : -S(ct, ct / 2));
 	sd.depth = ONE_PLY;
 	sd.multiPV = 1;
 	Value score = Search<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);

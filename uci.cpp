@@ -114,7 +114,7 @@ static void UciEval() {
 }
 
 static void UciTest() {
-	Score i = S(-54, 2)*-3;
+	Score i = S(-54, 2) * -3;
 	//cout << Mg(i) << " " << Eg(i) << endl;
 	//UciCommand("position startpos moves e2e4 e7e5 g1f3 b8c6 d2d4 g8f6 d4e5 f8b4 c2c3 e8g8 e5f6 d7d5 c3b4 c8g4 f1e2 d5d4 e1g1 d4d3 e2d3 c6e5 d3e2 d8d1 f1d1 g4f3 e2f3 f8d8 d1d8 a8d8 f3e2 a7a6 b1c3 c7c6 c1e3 b7b6 e3b6 d8d2 b2b3 c6c5 b4c5 h7h6 a1d1 d2d1 e2d1 e5c6 d1e2 g7g6 e2a6 g8f8 a2a3 f8g8 b3b4 g8h7 c3d5 h7h8 d5e7 c6e5 c5c6 e5c6 e7c6 g6g5 b6e3 h8h7 a6d3 h7h8 b4b5 h8h7 b5b6 h7g6 b6b7 g6f6 b7b8q f6g7 a3a4 g7h7 a4a5 g5g4 a5a6 f7f6 a6a7 f6f5 e4f5");
 	UciCommand("setoption name MultiPV value 4");
@@ -157,33 +157,32 @@ void UciCommand(string str) {
 	if (command == "uci")
 	{
 		int delta = 50;
-		printf("id name %s\n",engineName.c_str());
-		printf("option name hash type spin default %d min 1 max 1024\n", options.hash);
-		printf("option name MultiPV type spin default 1 min 1 max 32\n");
+		cout << "id name " << engineName << endl;
+		cout << "option name hash type spin default " << options.hash << " min 1 max 1024" << endl;
+		cout << "option name MultiPV type spin default 1 min 1 max 32" << endl;
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);
 		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futility - delta, options.futility + delta);
 		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoring - delta, options.razoring + delta);
 		printf("option name null type spin default %d min %d max %d\n", options.nullMove, options.nullMove - delta, options.nullMove + delta);
 		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmr - delta, options.lmr + delta);
-		printf("option name contempt type spin default %d min %d max %d\n", options.contempt, options.contempt - delta, options.contempt + delta);
 		printf("option name tempo type spin default %d min %d max %d\n", options.tempo, options.tempo - delta, options.tempo + delta);
 		printf("option name aspiration type spin default %d min %d max %d\n", options.aspiration, options.aspiration - delta, options.aspiration + delta);
-		printf("option name ponder type check default %s\n", options.ponder ? "true" : "false");
-		printf("option name material type string default %s\n", options.material.c_str());
-		printf("option name mobility type string default %s\n", options.mobility.c_str());
-		printf("option name passed type string default %s\n", options.passed.c_str());
-		printf("option name pawn type string default %s\n", options.pawn.c_str());
-		printf("option name rook type string default %s\n", options.rook.c_str());
-		printf("option name king type string default %s\n", options.king.c_str());
-		printf("option name outpost type string default %s\n", options.outpost.c_str());
-		printf("option name pair type string default %s\n", options.pair.c_str());
-		printf("option name tropism type string default %s\n", options.tropism.c_str());
-		printf("option name outFile type string default %s\n", options.outFile.c_str());
-		printf("option name outRank type string default %s\n", options.outRank.c_str());
-		puts("uciok");
+		cout << "option name ponder type check default " << (options.ponder ? "true" : "false") << endl;
+		cout << "option name material type string default " << options.material << endl;
+		cout << "option name mobility type string default " << options.mobility << endl;
+		cout << "option name passed type string default " << options.passed << endl;
+		cout << "option name pawn type string default " << options.pawn << endl;
+		cout << "option name rook type string default " << options.rook << endl;
+		cout << "option name king type string default " << options.king << endl;
+		cout << "option name outpost type string default " << options.outpost << endl;
+		cout << "option name bishop type string default " << options.bishop << endl;
+		cout << "option name pawnProtection type string default " << options.pawnProtection << endl;
+		cout << "option name outFile type string default " << options.outFile << endl;
+		cout << "option name outRank type string default " << options.outRank << endl;
+		cout << "uciok" << endl;
 	}
 	else if (command == "isready")
-		puts("readyok");
+		cout << "readyok" << endl;
 	else if (command == "ucinewgame") {
 		tt.Clear();
 		InitEval();
@@ -315,8 +314,6 @@ void UciCommand(string str) {
 				options.lmr = stoi(value);
 			else if (name == "aspiration")
 				options.aspiration = stoi(value);
-			else if (name == "contempt")
-				options.contempt = stoi(value);
 			else if (name == "tempo")
 				options.tempo = stoi(value);
 			else if (name == "material")
@@ -337,10 +334,10 @@ void UciCommand(string str) {
 				options.king = value;
 			else if (name == "outpost")
 				options.outpost = value;
-			else if (name == "pair")
-				options.pair = value;
-			else if (name == "tropism")
-				options.tropism = value;
+			else if (name == "bishop")
+				options.bishop = value;
+			else if (name == "pawnProtection")
+				options.pawnProtection = value;
 		}
 	}
 	else if (command == "bench") {

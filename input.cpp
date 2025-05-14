@@ -25,7 +25,7 @@ int InitImput()
 	return 0;
 }
 
-bool input() {
+static bool input() {
 	unsigned long dw = 0;
 	if (pipe)
 		PeekNamedPipe(hstdin, 0, 0, 0, &dw, 0);

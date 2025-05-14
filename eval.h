@@ -7,23 +7,13 @@
 #include "move.h"
 
 extern Score contempt;
-extern Value tempo;
+extern Score tempo;
 
 struct SEvalSide {
 	bool chance = false;
+	int piece[PT_NB] = {};
 	Color color = COLOR_NB;
 	Square king = SQUARE_NB;
-	int piece[PT_NB] = {};
-	Score score = SCORE_ZERO;
-	Score scorePawnConnected = SCORE_ZERO;
-	Score scorePawnDoubled = SCORE_ZERO;
-	Score scorePawnIsolated = SCORE_ZERO;
-	Score scorePawnBackward = SCORE_ZERO;
-	Score scorePawnPassed = SCORE_ZERO;
-	Score scoreMobility = SCORE_ZERO;
-	Score scorePair = SCORE_ZERO;
-	Score scoreTropism = SCORE_ZERO;
-	Score scorePiece[PT_NB] = {};
 };
 
 void InitEval();
