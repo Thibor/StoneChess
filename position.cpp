@@ -22,18 +22,19 @@ void zobrist::InitialiseZobristKeys() {
 
 //Pretty-prints the position (including FEN and hash key)
 void Position::PrintBoard() const {
-	const char* s = "   +---+---+---+---+---+---+---+---+\n";
-	const char* t = "     A   B   C   D   E   F   G   H\n";
-	cout << t;
+	string s = "   +---+---+---+---+---+---+---+---+";
+	string t = "     A   B   C   D   E   F   G   H";
+	cout << t << endl;
 	for (int i = 56; i >= 0; i -= 8) {
-		cout << s << " " << i / 8 + 1 << " ";
+		cout << s << endl;
+		cout << " " << i / 8 + 1 << " ";
 		for (int j = 0; j < 8; j++) {
 			Piece piece = board[i + j];
 			cout << "| " << PIECE_PRT[piece] << " ";
 		}
 		cout << "| " << i / 8 + 1 << endl;
 	}
-	cout << s;
+	cout << s << endl;
 	cout << t << endl;
 	cout << "FEN: " << GetFen() << endl;
 	cout << "Hash: 0x" << std::hex << hash << std::dec << endl;
@@ -75,7 +76,7 @@ inline Move* make<PROMOTION_CAPTURES>(Square from, Bitboard b, Move* list) {
 	return list;
 }
 
-constexpr Position::Position() : piece_bb{ 0 }, color(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0),move50(0) {
+constexpr Position::Position() : piece_bb{ 0 }, color(WHITE), historyIndex(0), board{}, hash(0), pinned(0), checkers(0), move50(0) {
 	//Sets all squares on the board as empty
 	for (int i = 0; i < 64; i++)
 		board[i] = NO_PIECE;
@@ -143,7 +144,7 @@ inline void Position::RemovePiece(Square s) {
 	board[s] = NO_PIECE;
 }
 
-bool Position::IsRepetition() const{
+bool Position::IsRepetition() const {
 	for (int n = historyIndex - 2; n >= historyIndex - move50; n -= 2)
 		if (n >= 0)
 			if (history[n].hash == hash)
@@ -193,22 +194,22 @@ void Position::MakeMove(const Move m) {
 		break;
 	case OO:
 		if (c == WHITE) {
-			MovePieceQuiet (SQ_E1,SQ_G1);
-			MovePieceQuiet(SQ_H1,SQ_F1);
+			MovePieceQuiet(SQ_E1, SQ_G1);
+			MovePieceQuiet(SQ_H1, SQ_F1);
 		}
 		else {
-			MovePieceQuiet(SQ_E8,SQ_G8);
-			MovePieceQuiet(SQ_H8,SQ_F8);
+			MovePieceQuiet(SQ_E8, SQ_G8);
+			MovePieceQuiet(SQ_H8, SQ_F8);
 		}
 		break;
 	case OOO:
 		if (c == WHITE) {
-			MovePieceQuiet(SQ_E1,SQ_C1);
-			MovePieceQuiet(SQ_A1,SQ_D1);
+			MovePieceQuiet(SQ_E1, SQ_C1);
+			MovePieceQuiet(SQ_A1, SQ_D1);
 		}
 		else {
-			MovePieceQuiet(SQ_E8,SQ_C8);
-			MovePieceQuiet(SQ_A8,SQ_D8);
+			MovePieceQuiet(SQ_E8, SQ_C8);
+			MovePieceQuiet(SQ_A8, SQ_D8);
 		}
 		break;
 	case EN_PASSANT:
@@ -278,22 +279,22 @@ void Position::UnmakeMove(const Move m) {
 		break;
 	case OO:
 		if (c == WHITE) {
-			MovePieceQuiet(SQ_G1,SQ_E1);
-			MovePieceQuiet(SQ_F1,SQ_H1);
+			MovePieceQuiet(SQ_G1, SQ_E1);
+			MovePieceQuiet(SQ_F1, SQ_H1);
 		}
 		else {
-			MovePieceQuiet(SQ_G8,SQ_E8);
-			MovePieceQuiet(SQ_F8,SQ_H8);
+			MovePieceQuiet(SQ_G8, SQ_E8);
+			MovePieceQuiet(SQ_F8, SQ_H8);
 		}
 		break;
 	case OOO:
 		if (c == WHITE) {
-			MovePieceQuiet(SQ_C1,SQ_E1);
-			MovePieceQuiet(SQ_D1,SQ_A1);
+			MovePieceQuiet(SQ_C1, SQ_E1);
+			MovePieceQuiet(SQ_D1, SQ_A1);
 		}
 		else {
-			MovePieceQuiet(SQ_C8,SQ_E8);
-			MovePieceQuiet(SQ_D8,SQ_A8);
+			MovePieceQuiet(SQ_C8, SQ_E8);
+			MovePieceQuiet(SQ_D8, SQ_A8);
 		}
 		break;
 	case EN_PASSANT:
@@ -602,7 +603,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 
 				if ((sliding_attacks(our_king, all ^ SQUARE_BB[s]
 					^ Shift(RelativeDir(Us, SOUTH), SQUARE_BB[history[historyIndex].epsq]),
-					MASK_RANK[RankOf(our_king)]) &
+						MASK_RANK[RankOf(our_king)]) &
 					their_orth_sliders) == 0)
 					*list++ = Move(s, history[historyIndex].epsq, EN_PASSANT);
 			}
@@ -614,20 +615,20 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 			}
 		}
 
-		if (quiet) 
+		if (quiet)
 		{
 			//Only add castling if:
 			//1. The king and the rook have both not moved
 			//2. No piece is attacking between the the rook and the king
 			//3. The king is not in check
 			if (!((history[historyIndex].entry & oo_mask(Us)) | ((all | danger) & oo_blockers_mask(Us)))) {
-				*list++ = Us == WHITE ? Move(SQ_E1,SQ_G1, OO) : Move(SQ_E8, SQ_G8, OO);
+				*list++ = Us == WHITE ? Move(SQ_E1, SQ_G1, OO) : Move(SQ_E8, SQ_G8, OO);
 				//Move m = WHITE ? Move(e1, h1, OO) : Move(e8, h8, OO);
 				//std::cout << m.ToUci() << endl;
 			}
 			if (!((history[historyIndex].entry & ooo_mask(Us)) |
 				((all | (danger & ~ignore_ooo_danger(Us))) & ooo_blockers_mask(Us))))
-				*list++ = Us == WHITE ? Move(SQ_E1,SQ_C1, OOO) : Move(SQ_E8,SQ_C8, OOO);
+				*list++ = Us == WHITE ? Move(SQ_E1, SQ_C1, OOO) : Move(SQ_E8, SQ_C8, OOO);
 		}
 		//For each pinned rook, bishop or queen...
 		b1 = ~(not_pinned | bitboard_of(Us, KNIGHT));
@@ -707,7 +708,7 @@ Move* Position::GenerateMoves(Color Us, Move* list, bool quiet) {
 	//b1 contains non-pinned pawns which are not on the last rank
 	b1 = bitboard_of(Us, PAWN) & not_pinned & ~MASK_RANK[RelativeRank(Us, RANK_7)];
 
-	if (quiet) 
+	if (quiet)
 	{
 		//Single pawn pushes
 		b2 = Shift(RelativeDir(Us, NORTH), b1) & ~all;

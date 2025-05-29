@@ -138,7 +138,7 @@ static void UpdateQuietStats(Stack* ss, Move move) {
 
 //Quiesce search
 template <NodeType nt>
-Value QSearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = DEPTH_ZERO) {
+Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = DEPTH_ZERO) {
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
@@ -219,7 +219,7 @@ Value QSearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = D
 		Move m = pe.move;
 		if ((bestMove != MOVE_NONE) && (pe.value < 0))break;
 		pos.MakeMove(m);
-		value = -QSearch<nt>(pos, ss + 1, -beta, -alpha, depth - ONE_PLY);
+		value = -SearchQuiesce<nt>(pos, ss + 1, -beta, -alpha, depth - ONE_PLY);
 		pos.UnmakeMove(m);
 		//if (chronos.gameOver)return alpha;
 		if (value > bestValue) {
@@ -238,7 +238,7 @@ Value QSearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = D
 
 //Main search loop
 template <NodeType nt>
-static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value beta, bool doNull = true) {
+static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Value beta, bool doNull = true) {
 	// Step 1.
 	if ((pos.move50 >= 100) || (pos.IsRepetition()))
 		return VALUE_ZERO;
@@ -247,7 +247,7 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 	if (inCheck)// && depth<ONE_PLY)
 		++depth;
 	if (depth < ONE_PLY)
-		return QSearch<nt>(pos, ss, alpha, beta);
+		return SearchQuiesce<nt>(pos, ss, alpha, beta);
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
@@ -308,7 +308,7 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 		//razoring
 		if (depth < 2 * ONE_PLY
 			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
-			return QSearch<nt>(pos, ss, alpha, beta);
+			return SearchQuiesce<nt>(pos, ss, alpha, beta);
 
 		//futility pruning
 		if (depth < 7 * ONE_PLY
@@ -335,7 +335,7 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 			&& pos.NotOnlyPawns()) {
 			pos.MakeNull();
 			Depth R = ((NULL_MARGIN + 67 * depth / ONE_PLY) / 256 + std::min(int(staticEval - beta) / 200, 3)) * ONE_PLY;
-			Value nullValue = -Search<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1, false);
+			Value nullValue = -SearchAlpha<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1, false);
 			pos.UnmakeNull();
 			if (nullValue >= beta)
 			{
@@ -345,7 +345,7 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 				if (abs(beta) < VALUE_KNOWN_WIN && depth < 12 * ONE_PLY)
 					return nullValue;
 
-				Value v = Search<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1);
+				Value v = SearchAlpha<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1);
 
 				if (v >= beta)
 					return nullValue;
@@ -369,7 +369,7 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 			continue;
 		pos.MakeMove(m);
 		if (!n)
-			value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
+			value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		else {
 			Depth r = DEPTH_ZERO;
 			if (pe.value < 0)++r;
@@ -380,11 +380,11 @@ static Value Search(Position& pos, Stack* ss, Depth depth, Value alpha, Value be
 			if (r && pos.InCheck())--r;
 			if (r && improving)--r;
 			r += reduction<nt>(improving, depth, n);
-			value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY - r, -alpha - 1, -alpha);
+			value = -SearchAlpha<NONPV>(pos, ss + 1, depth - ONE_PLY - r, -alpha - 1, -alpha);
 			if (r && value > alpha)
-				value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
+				value = -SearchAlpha<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
 			if (value > alpha && value < beta)
-				value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
+				value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		}
 		pos.UnmakeMove(m);
 		if (chronos.gameOver)
@@ -425,11 +425,11 @@ static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, V
 		Move move = pe.move;
 		pos.MakeMove(move);
 		if (bestMove == MOVE_NONE)
-			value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
+			value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		else {
-			value = -Search<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
+			value = -SearchAlpha<NONPV>(pos, ss + 1, depth - ONE_PLY, -alpha - 1, -alpha);
 			if (value > alpha)
-				value = -Search<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
+				value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		}
 		pos.UnmakeMove(move);
 		if (bestValue < value) {
@@ -490,7 +490,7 @@ void SearchIterate() {
 	}
 	sd.depth = ONE_PLY;
 	sd.multiPV = 1;
-	Value score = Search<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
+	Value score = SearchAlpha<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
 	while (!chronos.gameOver) {
 		score = SearchWiden(g_pos, ss, picker, sd.depth, score);
 		if (sd.bestMove != MOVE_NONE) {

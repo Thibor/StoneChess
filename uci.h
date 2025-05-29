@@ -19,19 +19,18 @@ struct SOptions{
 	int lmr = 183;
 	int nullMove = 941;
 	int razoring = 529;
-	int tempo = 16;
-
-	string bishop = "32 56 -4 -4";
+	string bishop = "32 55 -36 -4";
+	string defense = "11 14 11 20 -6 18 -3 13 -62 13 -46 20";
 	string king = "52 39";
 	string material = "-27 13 22 -34 33";
-	string mobility = "8 5 7 7 3 5 3 2";
-	string outFile = "2 -6 -3 -5 6 -4 -6 -2 -4 -1 12 -15";
+	string mobility = "8 5 3 7 3 5 3 2";
+	string outFile = "2 -6 -3 -5 -58 -4 -6 -8 -4 -1 12 -15";
 	string outpost = "80 8 11 4";
-	string outRank = "1 -7 -17 1 -17 2 5 5 -10 11 16 -22";
+	string outRank = "1 57 -17 5 -17 2 3 5 -10 11 16 -22";
 	string passed = "-5 8 -49 -4 4";
-	string pawn = "3 7 -24 -26 -8 -21 -10 -1";
-	string pawnProtection = "11 14 11 20 -6 18 -3 13 -5 17 -46 20";
+	string pawn = "3 7 -28 -26 -8 -21 -10 3";
 	string rook = "72 1 30 12";
+	string tempo = "16 8";
 
 
 };

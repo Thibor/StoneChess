@@ -100,7 +100,6 @@ static Value ScoreToValue(Score score) {
 }
 
 void InitEval() {
-	tempo = S(options.tempo, options.tempo/2);
 	int mg, eg;
 	int v, d;
 	srand(time(NULL));
@@ -133,7 +132,7 @@ void InitEval() {
 		eg = GetVal(split, pt * 2 + 1);
 		outsideRank[pt] = S(mg, eg);
 	}
-	SplitInt(options.pawnProtection, split, ' ');
+	SplitInt(options.defense, split, ' ');
 	for (int pt = PAWN; pt < PT_NB; pt++) {
 		mg = GetVal(split, pt * 2);
 		eg = GetVal(split, pt * 2 + 1);
@@ -197,6 +196,11 @@ void InitEval() {
 	mg = GetVal(split, 2);
 	eg = GetVal(split, 3);
 	rookSemiOpen = S(mg, eg);
+
+	SplitInt(options.tempo, split, ' ');
+	mg = GetVal(split, 0);
+	eg = GetVal(split, 1);
+	tempo= S(mg, eg);
 
 	for (PieceType pt = PAWN; pt < PT_NB; ++pt)
 		for (Rank r = RANK_1; r < RANK_NB; ++r)
@@ -302,7 +306,9 @@ static Score TotalScore(int c) {
 static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 	int cw = 0;
 	Color color = esUs.color;
-	Bitboard bbAll = pos.AllPieces();
+	Bitboard bbUs = pos.AllPieces(color);
+	Bitboard bbEn = pos.AllPieces(~color);
+	Bitboard bbAll = bbUs | bbEn;
 	Bitboard bbPawnsUs = pos.piece_bb[MakePiece(color, PAWN)];
 	Bitboard bbPawnsEn = pos.piece_bb[MakePiece(~color, PAWN)];
 	Direction north = RelativeDir(color, NORTH);
@@ -335,7 +341,7 @@ static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 				if (!(bbPassedPawnMask[color][sq] & bbPawnsEn)) {
 					Value passed = passedFile * OutsideFile(file);
 					passed += passedRank * PassedRank(rank);
-					if (Shift(RelativeDir(color, NORTH), bbPiece) & pos.AllPieces(~color))
+					if (Shift(RelativeDir(color, NORTH), bbPiece) & bbEn)
 						passed += passedBlocked;
 					Square sq2 = Square(sq + (color == WHITE ? 8 : -8));
 					passed += passedKU * Distance(esUs.king, sq2);
@@ -385,8 +391,11 @@ static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 				else  if ((pt == KNIGHT) || (pt == BISHOP)) {
 					if (bbOutpost & bbPiece)
 						scores[pt][color] += outpost[pt == BISHOP][bbDefense && bbPiece] * 2;
-					else if (bbOutpost & attacks(pt, sq, pos.AllPieces()))
-						scores[pt][color] += outpost[pt == BISHOP][bbDefense && bbPiece];
+					else {
+						Bitboard bb = bbOutpost & attacks(pt, sq, bbAll) & ~bbUs;
+						if (bb)
+							scores[pt][color] += outpost[pt == BISHOP][bbDefense && bb];
+					}
 				}
 			}
 		}
@@ -457,14 +466,13 @@ Value Trace(Position& pos) {
 		phase = 24;
 	if (!esW.chance && !esB.chance)
 		return VALUE_ZERO;
-	//Score score = tempo + sw - sb + contempt;
-	Score score = sw - sb +(pos.ColorWhite() ? tempo : -tempo);
-	Value v = ScoreToValue(score);
+	Score score = sw - sb;
+	if (pos.ColorBlack())
+		score = -score;
 	if ((!esW.chance && score > 0) || (!esB.chance && score < 0))
 		return VALUE_ZERO;
-	v = (pos.ColorWhite() ? v : -v);
+	Value v = ScoreToValue(score + tempo);
 	if (T) {
-		//pos.Phase();
 		Picker picker;
 		pos.MoveList(pos.ColorUs(), picker.mList, picker.count);
 		picker.Fill();
@@ -493,7 +501,7 @@ Value ShowEval() {
 		//position.SetFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 		//position.SetFen("4r1k1/2pp1pp1/2b2q1p/rp2p3/4P3/P1PPQN1P/5PP1/R4RK1 w - - 0 20");
 	//position.SetFen("3k4/5Q2/3Np1p1/1pPp4/6n1/P3PN2/5PPP/R3K2R b KQ - 0 25");
-	g_pos.SetFen("1k6/1pp1R1p1/4P3/4b1P1/5p2/3q4/1P2R1PK/8 b - - 0 1");
+	g_pos.SetFen("1k6/1pp1R1p1/4PN2/4b1P1/5p2/3q1n2/1P2R1PK/8 b - - 0 1");
 	return (Trace<TRACE>(g_pos));
 }
 

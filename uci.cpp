@@ -165,7 +165,6 @@ void UciCommand(string str) {
 		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoring - delta, options.razoring + delta);
 		printf("option name null type spin default %d min %d max %d\n", options.nullMove, options.nullMove - delta, options.nullMove + delta);
 		printf("option name LMR type spin default %d min %d max %d\n", options.lmr, options.lmr - delta, options.lmr + delta);
-		printf("option name tempo type spin default %d min %d max %d\n", options.tempo, options.tempo - delta, options.tempo + delta);
 		printf("option name aspiration type spin default %d min %d max %d\n", options.aspiration, options.aspiration - delta, options.aspiration + delta);
 		cout << "option name ponder type check default " << (options.ponder ? "true" : "false") << endl;
 		cout << "option name material type string default " << options.material << endl;
@@ -176,9 +175,10 @@ void UciCommand(string str) {
 		cout << "option name king type string default " << options.king << endl;
 		cout << "option name outpost type string default " << options.outpost << endl;
 		cout << "option name bishop type string default " << options.bishop << endl;
-		cout << "option name pawnProtection type string default " << options.pawnProtection << endl;
+		cout << "option name defense type string default " << options.defense << endl;
 		cout << "option name outFile type string default " << options.outFile << endl;
 		cout << "option name outRank type string default " << options.outRank << endl;
+		cout << "option name tempo type string default " << options.tempo << endl;
 		cout << "uciok" << endl;
 	}
 	else if (command == "isready")
@@ -336,8 +336,8 @@ void UciCommand(string str) {
 				options.outpost = value;
 			else if (name == "bishop")
 				options.bishop = value;
-			else if (name == "pawnProtection")
-				options.pawnProtection = value;
+			else if (name == "defense")
+				options.defense = value;
 		}
 	}
 	else if (command == "bench") {

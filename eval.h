@@ -6,9 +6,6 @@
 #include "uci.h"
 #include "move.h"
 
-extern Score contempt;
-extern Score tempo;
-
 struct SEvalSide {
 	bool chance = false;
 	int piece[PT_NB] = {};
