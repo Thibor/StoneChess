@@ -1,5 +1,4 @@
 #include "program.h"
-#include "types.h"
 
 using namespace std;
 
