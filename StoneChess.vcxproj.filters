@@ -18,9 +18,6 @@
     <ClCompile Include="chronos.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CTranspositionTable.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="eval.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,6 +42,9 @@
     <ClCompile Include="tables.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="transposition.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="types.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -56,22 +56,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="chronos.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CTranspositionTable.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="eval.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="input.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="move.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="picker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="position.h">
@@ -80,19 +65,10 @@
     <ClInclude Include="program.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="search.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="tables.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="uci.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

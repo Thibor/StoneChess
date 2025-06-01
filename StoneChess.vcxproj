@@ -110,7 +110,6 @@
     <ClCompile>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -120,8 +119,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="chronos.cpp" />
-    <ClCompile Include="CTranspositionTable.cpp" />
     <ClCompile Include="eval.cpp" />
     <ClCompile Include="input.cpp" />
     <ClCompile Include="move.cpp" />
@@ -130,24 +127,17 @@
     <ClCompile Include="program.cpp" />
     <ClCompile Include="search.cpp" />
     <ClCompile Include="tables.cpp" />
+    <ClCompile Include="transposition.cpp" />
     <ClCompile Include="types.cpp" />
     <ClCompile Include="uci.cpp" />
     <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="chronos.h" />
-    <ClInclude Include="CTranspositionTable.h" />
-    <ClInclude Include="eval.h" />
-    <ClInclude Include="input.h" />
     <ClInclude Include="move.h" />
-    <ClInclude Include="picker.h" />
     <ClInclude Include="position.h" />
     <ClInclude Include="program.h" />
-    <ClInclude Include="search.h" />
     <ClInclude Include="tables.h" />
     <ClInclude Include="types.h" />
-    <ClInclude Include="uci.h" />
-    <ClInclude Include="util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35806.99 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StoneChess", "StoneChess.vcxproj", "{72F6A160-C5C5-E70B-118D-625BFE0CA8E8}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Stonechess", "Stonechess.vcxproj", "{72F6A160-C5C5-E70B-118D-625BFE0CA8E8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,6 +26,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {876A8D9F-5BD0-4907-83F3-B4A4E80BBBE7}
+		SolutionGuid = {8B05A848-C9AF-45F4-A5AC-169B9AE1BE05}
 	EndGlobalSection
 EndGlobal

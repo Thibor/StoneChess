@@ -1,4 +1,4 @@
-#include "search.h"
+#include "program.h"
 
 int FUTILITY_MARGIN;
 int RAZOR_MARGIN;

@@ -1,4 +1,4 @@
-#include "picker.h"
+#include "program.h"
 
 void Picker::Fill() {
 	best = 0;
