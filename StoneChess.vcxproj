@@ -136,6 +136,7 @@
     <ClInclude Include="move.h" />
     <ClInclude Include="position.h" />
     <ClInclude Include="program.h" />
+    <ClInclude Include="search.h" />
     <ClInclude Include="tables.h" />
     <ClInclude Include="types.h" />
   </ItemGroup>

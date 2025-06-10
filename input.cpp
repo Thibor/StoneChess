@@ -1,6 +1,5 @@
-#include <iostream>
-#include <string>
 #include "windows.h"
+#include "program.h"
 
 using namespace std;
 

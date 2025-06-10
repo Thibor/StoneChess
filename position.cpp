@@ -36,9 +36,9 @@ void Position::PrintBoard() const {
 	}
 	cout << s << endl;
 	cout << t << endl;
-	cout << "FEN: " << GetFen() << endl;
+	cout << "FEN : " << GetFen() << endl;
 	cout << "Hash: 0x" << std::hex << hash << std::dec << endl;
-	cout << "Side: " << (color == WHITE ? "w" : "b") << endl;
+	cout << "Side: " << (color == WHITE ? "white" : "black") << endl;
 }
 
 //Adds, to the move pointer all moves of the form (from, s), where s is a square in the bitboard to
