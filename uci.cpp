@@ -157,7 +157,7 @@ void UciCommand(string str) {
 	if (command == "uci")
 	{
 		int delta = 50;
-		cout << "id name " << engineName << endl;
+		cout << "id name " << NAME << endl;
 		cout << "option name hash type spin default " << options.hash << " min 1 max 1024" << endl;
 		cout << "option name MultiPV type spin default 1 min 1 max 32" << endl;
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);

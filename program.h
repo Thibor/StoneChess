@@ -10,6 +10,8 @@
 #include "types.h"
 #include "search.h"
 
+#define NAME "StoneChess"
+
 struct PickerE {
 	Move move = MOVE_NONE;
 	Value value = VALUE_ZERO;

@@ -16,10 +16,9 @@ using namespace std;
 #define DAY (std::string(1,(__DATE__[4] == ' ' ?  '0' : (__DATE__[4]))) + (__DATE__[5]))
 #define YEAR ((__DATE__[7]-'0') * 1000 + (__DATE__[8]-'0') * 100 + (__DATE__[9]-'0') * 10 + (__DATE__[10]-'0') * 1)
 
-string engineName = "StoneChess";
 schronos chronos;
 static void PrintWelcome() {
-	cout << engineName<<" " << YEAR << "-" << MONTH << "-" << DAY << endl;
+	cout << NAME <<" " << YEAR << "-" << MONTH << "-" << DAY << endl;
 }
 
 //Displays a summary

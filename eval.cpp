@@ -340,9 +340,9 @@ static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 				if (!(bbPassedPawnMask[color][sq] & bbPawnsEn)) {
 					Value passed = passedFile * OutsideFile(file);
 					passed += passedRank * PassedRank(rank);
-					if (Shift(RelativeDir(color, NORTH), bbPiece) & bbEn)
+					if (Shift(north, bbPiece) & bbEn)
 						passed += passedBlocked;
-					Square sq2 = Square(sq + (color == WHITE ? 8 : -8));
+					Square sq2 = Square(sq + north);
 					passed += passedKU * Distance(esUs.king, sq2);
 					passed += passedKE * Distance(esEn.king, sq2);
 					scores[PASSED][color] += S(passed >> 1, passed);
