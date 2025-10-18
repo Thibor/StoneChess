@@ -11,6 +11,7 @@
 #include "search.h"
 
 #define NAME "StoneChess"
+#define VERSION "2025-09-30"
 
 struct PickerE {
 	Move move = MOVE_NONE;
@@ -152,22 +153,23 @@ struct SOptions {
 	int multiPV = 1;
 
 	int aspiration = 36;
+	int rfp = 120;
 	int futility = 748;
 	int lmr = 183;
 	int nullMove = 941;
-	int razoring = 529;
-	string bishop = "32 55 -36 -4";
-	string defense = "11 14 11 20 -6 18 -3 13 -62 13 -46 20";
+	int razoring = 530;
+	string bishop = "32 55 -36 -3";
+	string defense = "11 14 11 19 -6 18 -3 12 -62 12 -50 21";
 	string king = "52 39";
-	string material = "-27 13 22 -34 33";
-	string mobility = "8 5 3 7 3 5 3 2";
-	string outFile = "2 -6 -3 -5 -58 -4 -6 -8 -4 -1 12 -15";
-	string outpost = "80 8 11 4";
-	string outRank = "1 57 -17 5 -17 2 3 5 -10 11 16 -22";
-	string passed = "-5 8 -49 -4 4";
-	string pawn = "3 7 -28 -26 -8 -21 -10 3";
-	string rook = "72 1 30 12";
-	string tempo = "16 8";
+	string material = "-27 13 22 -38 32";
+	string mobility = "8 5 2 7 3 5 3 2";
+	string outFile = "2 -5 -3 -5 -26 -4 -6 -8 -4 1 12 -15";
+	string outpost = "81 6 11 4";
+	string outRank = "1 57 -17 5 -17 1 3 4 -10 11 16 -22";
+	string passed = "-5 8 -49 -4 5";
+	string pawn = "3 7 -28 -25 -8 -21 -10 3";
+	string rook = "76 9 30 11";
+	string tempo = "20 8";
 
 
 };

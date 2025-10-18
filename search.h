@@ -9,7 +9,7 @@
 #include "types.h"
 
 struct sSearchDriver {
-	int moveSet = 0;
+	int moveSetTry = 0;
 	int moveOk = 0;
 	int multiPV = 1;
 	Depth depth = DEPTH_ZERO;
@@ -22,7 +22,7 @@ struct sSearchDriver {
 	std::chrono::steady_clock::time_point timeStart{};
 
 	void Restart() {
-		moveSet = 0;
+		moveSetTry = 0;
 		moveOk = 0;
 		depth = DEPTH_ZERO;
 		bestScore = VALUE_ZERO;

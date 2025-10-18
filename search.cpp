@@ -1,5 +1,6 @@
 #include "search.h"
 
+int RFP_MARGIN;
 int FUTILITY_MARGIN;
 int RAZOR_MARGIN;
 int NULL_MARGIN;
@@ -24,6 +25,7 @@ struct Stack {
 sSearchDriver sd;
 
 void InitSearch() {
+	RFP_MARGIN = options.rfp;
 	FUTILITY_MARGIN = options.futility;
 	RAZOR_MARGIN = options.razoring;
 	NULL_MARGIN = options.nullMove;
@@ -88,7 +90,7 @@ static string ExtractPv() {
 	vector<Move> list;
 	ExtractPv(list);
 	sd.ponderMove = list.size() ? list[0] : MOVE_NONE;
-	for (int n = list.size() - 1; n >= 0; n--) {
+	for (int n = (int)list.size() - 1; n >= 0; n--) {
 		Move move = list[n];
 		pv = " " + move.ToUci() + pv;
 		g_pos.UnmakeMove(move);
@@ -116,7 +118,7 @@ static void ShowBestMove() {
 		return;
 	//ShowInfoPv();
 	U64 proNode = sd.nodes ? ((sd.nodes - sd.nodesq) * 100) / sd.nodes : 0;
-	int proMove = sd.moveSet ? (sd.moveOk * 100) / sd.moveSet : 0;
+	int proMove = sd.moveSetTry ? (sd.moveOk * 100) / sd.moveSetTry : 0;
 	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
 	cout << "bestmove " << sd.bestMove.ToUci();
 	if (options.ponder && sd.ponderMove.move)
@@ -302,13 +304,22 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 	//picker.best = sd.multiPV-1;
 	int td = depth + ss->ply;
 
-	bool improving = ss->staticEval >= (ss - 2)->staticEval || (ss - 2)->staticEval == VALUE_NONE;
+	bool improving = staticEval >= (ss - 2)->staticEval || (ss - 2)->staticEval == VALUE_NONE;
+	//bool improving = ss->staticEval >= (ss - 2)->staticEval || ss->staticEval == VALUE_NONE || (ss - 2)->staticEval == VALUE_NONE;
+
 	if (!inCheck) {
 
 		//razoring
 		if (depth < 2 * ONE_PLY
 			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
 			return SearchQuiesce<nt>(pos, ss, alpha, beta);
+
+		/*if (depth < 5 && !pvNode) {
+			const int margins[] = { 50, 50, 100, 200, 300 };
+			if (staticEval - margins[depth - improving] >= beta) {
+				return beta;
+			}
+		}*/
 
 		//futility pruning
 		if (depth < 7 * ONE_PLY
@@ -318,15 +329,14 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 			return staticEval;
 
 		//eval pruning
-		/*if (depth < 3
+		if (depth < 3
 			&& !pvNode
-			&& !inCheck
 			&& abs(beta - 1) > VALUE_MATED_IN)
 		{
-			int eval_margin = 120 * depth;
-			if (staticEval - eval_margin >= beta)
-				return staticEval - eval_margin;
-		}*/
+			Value eval = staticEval - RFP_MARGIN * depth;
+			if (eval >= beta)
+				return eval;
+		}
 
 		//null move pruning
 		if (doNull
@@ -497,11 +507,6 @@ void SearchIterate() {
 			picker.best = sd.multiPV - 1;
 			picker.SetBest(sd.bestMove);
 		}
-
-		/*for (int i1 = 0; i1<picker.count; i1++)
-			for(int i2=i1+1;i2<picker.count;i2++)
-				if (picker.pList[i1].move == picker.pList[i2].move)
-					cout << "duplicate move " << picker.pList[i1].move.ToUci() << endl;*/
 
 		sd.multiPV++;
 		if ((sd.multiPV > options.multiPV) || (sd.multiPV > picker.count)) {

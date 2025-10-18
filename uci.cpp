@@ -161,6 +161,7 @@ void UciCommand(string str) {
 		cout << "option name hash type spin default " << options.hash << " min 1 max 1024" << endl;
 		cout << "option name MultiPV type spin default 1 min 1 max 32" << endl;
 		printf("option name UCI_Elo type spin default %d min %d max %d\n", options.eloMax, options.eloMin, options.eloMax);
+		printf("option name rfp type spin default %d min %d max %d\n", options.rfp, options.rfp - delta, options.rfp + delta);
 		printf("option name futility type spin default %d min %d max %d\n", options.futility, options.futility - delta, options.futility + delta);
 		printf("option name razoring type spin default %d min %d max %d\n", options.razoring, options.razoring - delta, options.razoring + delta);
 		printf("option name null type spin default %d min %d max %d\n", options.nullMove, options.nullMove - delta, options.nullMove + delta);
@@ -304,6 +305,8 @@ void UciCommand(string str) {
 				options.multiPV = stoi(value);
 			else if (name == "uci_elo")
 				options.elo = stoi(value);
+			else if (name == "rfp")
+				options.rfp = stoi(value);
 			else if (name == "futility")
 				options.futility = stoi(value);
 			else if (name == "razoring")
@@ -315,7 +318,7 @@ void UciCommand(string str) {
 			else if (name == "aspiration")
 				options.aspiration = stoi(value);
 			else if (name == "tempo")
-				options.tempo = stoi(value);
+				options.tempo = value;
 			else if (name == "material")
 				options.material = value;
 			else if (name == "mobility")

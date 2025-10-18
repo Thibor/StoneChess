@@ -38,8 +38,6 @@ Score outsideRank[PT_NB] = {};
 const int chance[PT_NB] = { 3, 1, 2, 3, 3, 0 };
 Score bonus[PT_NB][RANK_NB][FILE_NB] = {};
 Value bonusMax[PT_NB][RANK_NB][FILE_NB] = {};
-
-//Score contempt = SCORE_ZERO;
 Score tempo = SCORE_ZERO;
 
 int phase = 0;

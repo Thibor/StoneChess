@@ -32,7 +32,7 @@ PickerE Picker::Pick(int index) {
 bool Picker::SetBest(Move m) {
 	if (m == MOVE_NONE)
 		return false;
-	sd.moveSet++;
+	sd.moveSetTry++;
 	for (int n = best; n < count; n++)
 		if (pList[n].move == m) {
 			PickerE pe = pList[n];
