@@ -7,8 +7,7 @@
 #include "types.h"
 #include "move.h"
 
-//A psuedorandom number generator
-//Source: Stockfish
+//A PsuedoRandom Number Generator
 class PRNG {
 	uint64_t s;
 
@@ -26,14 +25,6 @@ public:
 	//Generate psuedorandom number with only a few set bits
 	template<typename T> T sparse_rand() { return T(rand64() & rand64() & rand64()); }
 };
-
-/*U64 rand64() {
-	static U64 next = 1;
-
-	next = next * 1103515245 + 12345;
-	return next;
-}*/
-
 
 namespace zobrist {
 	extern Hash hashColor;

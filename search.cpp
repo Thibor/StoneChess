@@ -107,7 +107,7 @@ static void ShowInfoPv() {
 	U64 nps = ms ? (sd.nodes * 1000) / ms : 0;
 	string score = sd.bestScore > VALUE_MATE_IN ? "mate " + to_string((VALUE_MATE - sd.bestScore + 1) >> 1) :
 		sd.bestScore < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - sd.bestScore) >> 1) :
-		"cp " + to_string(sd.bestScore);
+		"cp " + to_string(ValueToCp(sd.bestScore));
 	string pv = ExtractPv();
 	//cout << "info string phase " << g_pos.phase << endl;
 	cout << "info time " << ms << " depth " << sd.depth << " multipv " << sd.multiPV << " score " << score << " nps " << nps << " nodes " << sd.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
@@ -140,7 +140,7 @@ static void UpdateQuietStats(Stack* ss, Move move) {
 
 //Quiesce search
 template <NodeType nt>
-Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = DEPTH_ZERO) {
+Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta) {
 	if (!(++sd.nodes & 0x1ffff))
 		CheckTime();
 	if (chronos.gameOver)
@@ -180,19 +180,7 @@ Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta, Depth dep
 			ttValue = ttE->GetValue();
 			if (picker.SetBest(ttMove)) {
 				ttHit = true;
-				if (!pvNode
-					&& ttE->depth >= depth
-					//&& ttValue != VALUE_NONE
-					//&& (ttValue >= beta ? (ttE->bound & BOUND_LOWER) : (ttE->bound & BOUND_UPPER))
-					)
-					//return ttValue;
-					/*if (ttE->bound & BOUND_UPPER) {
-						if (ttE->score >= beta)
-							return ttValue;
-					}
-					else if (ttE->bound & BOUND_LOWER)
-						if (ttE->score <= alpha)
-							return ttValue;*/
+				if (!pvNode)
 					if (ttE->bound == BOUND_EXACT)
 						return ttE->GetValue();
 					else if (ttE->bound == BOUND_UPPER) {
@@ -216,14 +204,12 @@ Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta, Depth dep
 
 	for (int n = 0; n < picker.count; n++)
 	{
-		//PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
 		PickerE pe = picker.Pick(n);
 		Move m = pe.move;
 		if ((bestMove != MOVE_NONE) && (pe.value < 0))break;
 		pos.MakeMove(m);
-		value = -SearchQuiesce<nt>(pos, ss + 1, -beta, -alpha, depth - ONE_PLY);
+		value = -SearchQuiesce<nt>(pos, ss + 1, -beta, -alpha);
 		pos.UnmakeMove(m);
-		//if (chronos.gameOver)return alpha;
 		if (value > bestValue) {
 			bestValue = value;
 			bestMove = m;
@@ -299,6 +285,8 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 
 		}
 	}
+	if (!picker.best)
+		depth -= Depth(depth > 3);
 	picker.SetBest(ss->killers[0]);
 	picker.SetBest(ss->killers[1]);
 	//picker.best = sd.multiPV-1;

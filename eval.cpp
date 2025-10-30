@@ -43,6 +43,10 @@ Score tempo = SCORE_ZERO;
 int phase = 0;
 int aPhase[PT_NB] = { 0,1,1,2,4,0 };
 
+int ValueToCp(Value v) {
+	return (v * 100) / materialMax[PAWN];
+}
+
 inline static Piece GetCapturedPiece(Move m) {
 	return g_pos.Board(m.To());
 }
@@ -142,8 +146,8 @@ void InitEval() {
 	SplitInt(options.material, split, ' ');
 	for (PieceType pt = PAWN; pt < KING; ++pt) {
 		int md = GetVal(split, pt);
-		mg = materialValOrg[pt] + md - eloMod;
-		eg = materialValOrg[pt] - md;
+		mg = materialValOrg[pt]*2 + md - eloMod;
+		eg = materialValOrg[pt]*2 - md;
 		material[pt] = S(mg, eg);
 		materialMax[pt] = ValueMax(material[pt]);
 	}
@@ -197,7 +201,7 @@ void InitEval() {
 	SplitInt(options.tempo, split, ' ');
 	mg = GetVal(split, 0);
 	eg = GetVal(split, 1);
-	tempo= S(mg, eg);
+	tempo = S(mg, eg);
 
 	for (PieceType pt = PAWN; pt < PT_NB; ++pt)
 		for (Rank r = RANK_1; r < RANK_NB; ++r)
@@ -206,7 +210,7 @@ void InitEval() {
 				bonus[pt][r][f] = material[pt];
 				bonus[pt][r][f] += outsideFile[pt] * OutsideFile(f);
 				if (pt == PAWN) {
-					bonus[pt][r][f] += outsideRank[pt] * (r - 4);
+					bonus[pt][r][f] += outsideRank[pt] * (r - 3);
 				}
 				else
 				{
@@ -330,6 +334,7 @@ static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 			const Rank rank = RelativeRank(color, r);
 			const File file = FileOf(sq);
 			scores[pt][color] += bonus[pt][rank][file];
+			//continue;
 			const Bitboard bbPiece = 1ULL << sq;
 			if (bbDefense & bbPiece)
 				scores[pt][color] += pawnProtection[pt];
@@ -416,8 +421,6 @@ static Score Eval(Position& pos, SEvalSide& esUs, SEvalSide& esEn) {
 	return score + TotalScore(color);
 }
 
-//template<typename T> void PrintE(T t) {cout << left << setw(8) << setfill(' ') << t;}
-
 static string ShowScore(string result) {
 	int len = 16 - result.length();
 	if (len < 0)
@@ -498,7 +501,7 @@ Value ShowEval() {
 		//position.SetFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 		//position.SetFen("4r1k1/2pp1pp1/2b2q1p/rp2p3/4P3/P1PPQN1P/5PP1/R4RK1 w - - 0 20");
 	//position.SetFen("3k4/5Q2/3Np1p1/1pPp4/6n1/P3PN2/5PPP/R3K2R b KQ - 0 25");
-	g_pos.SetFen("1k6/1pp1R1p1/4PN2/4b1P1/5p2/3q1n2/1P2R1PK/8 b - - 0 1");
+	g_pos.SetFen("5rk1/ppp2ppp/8/4pP2/1P2Bb2/2P2K2/8/7R b - - 0 28");
 	return (Trace<TRACE>(g_pos));
 }
 

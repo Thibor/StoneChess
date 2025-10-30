@@ -117,8 +117,8 @@ static void UciTest() {
 	Score i = S(-54, 2) * -3;
 	//cout << Mg(i) << " " << Eg(i) << endl;
 	//UciCommand("position startpos moves e2e4 e7e5 g1f3 b8c6 d2d4 g8f6 d4e5 f8b4 c2c3 e8g8 e5f6 d7d5 c3b4 c8g4 f1e2 d5d4 e1g1 d4d3 e2d3 c6e5 d3e2 d8d1 f1d1 g4f3 e2f3 f8d8 d1d8 a8d8 f3e2 a7a6 b1c3 c7c6 c1e3 b7b6 e3b6 d8d2 b2b3 c6c5 b4c5 h7h6 a1d1 d2d1 e2d1 e5c6 d1e2 g7g6 e2a6 g8f8 a2a3 f8g8 b3b4 g8h7 c3d5 h7h8 d5e7 c6e5 c5c6 e5c6 e7c6 g6g5 b6e3 h8h7 a6d3 h7h8 b4b5 h8h7 b5b6 h7g6 b6b7 g6f6 b7b8q f6g7 a3a4 g7h7 a4a5 g5g4 a5a6 f7f6 a6a7 f6f5 e4f5");
-	UciCommand("setoption name MultiPV value 4");
-	UciCommand("position fen 5r1k/6pp/1n2Q3/4p3/8/7P/PP4PK/R1B1q3 b - - 0 1");
+	//UciCommand("setoption name MultiPV value 4");
+	UciCommand("position fen 5rk1/ppp2ppp/8/4pP2/1P2Bb2/2P2K2/8/7R b - - 0 28");
 	//UciCommand("go movetime 3000");
 	UciCommand("go depth 3");
 	/*rootPos.SetFen("8/6K1/8/8/4Q3/2k5/8/8 w - - 0 20");
