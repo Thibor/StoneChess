@@ -69,42 +69,44 @@ static void ShowInfo(uint64_t time, uint64_t nodes) {
 }
 
 //StartPerformance test
-static void UciPerft(int depth)
+static void UciPerft(int s)
 {
 	printf("Performance Test\n");
 	uint64_t time = 0;
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	chronos.depth = 0;
 	g_pos.SetFen();
-	for (int d = 1; d <= depth; d++)
+	while(time < s * 1000)
 	{
-		nodes += Perft(d);
+		nodes += Perft(++chronos.depth);
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 		time = duration.count();
-		cout << d << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
+		cout << chronos.depth << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
 	}
 	ShowInfo(time, nodes);
 }
 
 //Start benchamrk test
-static void UciBench(int depth) {
+static void UciBench(int s) {
 	printf("Benchmark Test\n");
 	uint64_t time = 0;
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	g_pos.SetFen();
+	chronos.depth = 0;
 	chronos.post = false;
 	chronos.flags = FDEPTH;
-	for (int d = 1; d <= depth; d++)
+	while (time < s * 1000)
 	{
-		chronos.depth = d;
+		chronos.depth++;
 		SearchIterate();
 		nodes = sd.nodes;
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 		time = duration.count();
-		cout << d << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
+		cout << chronos.depth << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
 	}
 	ShowInfo(time, nodes);
 }
@@ -347,13 +349,13 @@ void UciCommand(string str) {
 		if (UciValue(split, "bench", value))
 			UciBench(stoi(value));
 		else
-			UciBench(10);
+			UciBench(1);
 	}
 	else if (command == "perft") {
 		if (UciValue(split, "perft", value))
 			UciPerft(stoi(value));
 		else
-			UciPerft(6);
+			UciPerft(1);
 	}
 	else if (command == "eval")
 		UciEval();

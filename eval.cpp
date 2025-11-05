@@ -111,7 +111,8 @@ void InitEval() {
 		elo = options.eloMax;
 	elo -= options.eloMin;
 	int eloRange = options.eloMax - options.eloMin;
-	int eloMod = 600 - (600 * elo) / eloRange;
+	int eloMod = materialValOrg[QUEEN] * 2;
+	eloMod -= (eloMod * elo) / eloRange;
 	vector<int> split{};
 
 	SplitInt(options.mobility, split, ' ');
@@ -146,8 +147,8 @@ void InitEval() {
 	SplitInt(options.material, split, ' ');
 	for (PieceType pt = PAWN; pt < KING; ++pt) {
 		int md = GetVal(split, pt);
-		mg = materialValOrg[pt]*2 + md - eloMod;
-		eg = materialValOrg[pt]*2 - md;
+		mg = materialValOrg[pt] * 2 + md - eloMod;
+		eg = materialValOrg[pt] * 2 - md;
 		material[pt] = S(mg, eg);
 		materialMax[pt] = ValueMax(material[pt]);
 	}

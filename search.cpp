@@ -213,10 +213,10 @@ Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta) {
 		if (value > bestValue) {
 			bestValue = value;
 			bestMove = m;
-			if (value >= beta)
-				break;
 			if (value > alpha)
 				alpha = value;
+			if (value >= beta)
+				break;
 		}
 	}
 	Bound rt = bestValue <= oldAlpha ? BOUND_LOWER : bestValue >= beta ? BOUND_UPPER : BOUND_EXACT;
@@ -232,7 +232,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		return VALUE_ZERO;
 	Value value;
 	bool inCheck = pos.InCheck();
-	if (inCheck)// && depth<ONE_PLY)
+	if (inCheck)
 		++depth;
 	if (depth < ONE_PLY)
 		return SearchQuiesce<nt>(pos, ss, alpha, beta);
@@ -289,7 +289,6 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		depth -= Depth(depth > 3);
 	picker.SetBest(ss->killers[0]);
 	picker.SetBest(ss->killers[1]);
-	//picker.best = sd.multiPV-1;
 	int td = depth + ss->ply;
 
 	bool improving = staticEval >= (ss - 2)->staticEval || (ss - 2)->staticEval == VALUE_NONE;
@@ -301,13 +300,6 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		if (depth < 2 * ONE_PLY
 			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
 			return SearchQuiesce<nt>(pos, ss, alpha, beta);
-
-		/*if (depth < 5 && !pvNode) {
-			const int margins[] = { 50, 50, 100, 200, 300 };
-			if (staticEval - margins[depth - improving] >= beta) {
-				return beta;
-			}
-		}*/
 
 		//futility pruning
 		if (depth < 7 * ONE_PLY
@@ -359,7 +351,6 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 	Move bestMove = MOVE_NONE;
 	for (int n = 0; n < picker.count; n++)
 	{
-		//PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
 		PickerE pe = picker.Pick(n);
 		Move m = pe.move;
 		bool moveCountPruning = depth < 16 * ONE_PLY && n >= FutilityMoveCounts[improving][depth / ONE_PLY];
@@ -373,8 +364,6 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 			if (pe.value < 0)++r;
 			if (nt == NONPV)++r;
 			if (m.IsQuiet())++r;
-			//if (pos.move50)++r; else if (r)--r;
-			//if (pos.move50)++r;
 			if (r && pos.InCheck())--r;
 			if (r && improving)--r;
 			r += reduction<nt>(improving, depth, n);
@@ -386,19 +375,19 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		}
 		pos.UnmakeMove(m);
 		if (chronos.gameOver)
-			return alpha;
+			return VALUE_ZERO;
 		if (value > bestValue) {
 			bestMove = m;
 			bestValue = value;
 			ss->staticValue = value;
+			if (value > alpha)
+				alpha = value;
 			if (value >= beta)
 			{
 				if (m.IsQuiet())
 					UpdateQuietStats(ss, m);
 				break;
 			}
-			if (value > alpha)
-				alpha = value;
 		}
 	}
 	Bound rt = bestValue <= oldAlpha ? BOUND_LOWER : bestValue >= beta ? BOUND_UPPER : BOUND_EXACT;

@@ -1,4 +1,5 @@
 # StoneChess
+
 <div align="center" style="padding-top: 50px">
 <img src="/Resources/stonechess.png" />
     <br>
@@ -15,6 +16,9 @@
 
 ## Features
 
-- [x] alpha beta pruning<br>
-- [x] bitboard<br>
-- [x] null move pruning<br>
+- [x] Alpha beta pruning<br>
+- [x] Quiescence search<br>
+- [x] Bitboard<br>
+- [x] Null move pruning<br>
+- [x] Futility pruning<br>
+- [x] Razoring<br>

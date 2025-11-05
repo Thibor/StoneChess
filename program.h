@@ -153,25 +153,23 @@ struct SOptions {
 	int multiPV = 1;
 
 	int aspiration = 35;
-	int futility = 750;
+	int futility = 749;
 	int lmr = 183;
-	int nullMove = 941;
-	int razoring = 529;
-	int rfp = 118;
+	int nullMove = 939;
+	int razoring = 533;
+	int rfp = 120;
 	string bishop = "32 54 -36 -3";
-	string defense = "12 14 12 19 -6 18 -3 13 -60 12 -49 22";
+	string defense = "12 14 12 19 -6 17 -4 13 -59 12 -49 22";
 	string king = "52 39";
-	string material = "-27 13 23 -38 32";
-	string mobility = "8 6 2 8 3 5 3 1";
-	string outFile = "2 -5 -4 -6 -26 -4 -6 -9 -5 1 12 -15";
-	string outpost = "80 4 11 4";
-	string outRank = "2 57 -17 6 -18 1 2 4 -10 10 16 -24";
-	string passed = "-5 8 -48 -4 5";
-	string pawn = "3 7 -29 -25 -8 -22 -10 7";
-	string rook = "76 9 29 11";
-	string tempo = "21 8";
-
-
+	string material = "-27 14 23 -37 30";
+	string mobility = "8 6 4 8 3 5 3 1";
+	string outFile = "1 -5 -4 -7 -26 -4 -6 -8 -5 1 12 -15";
+	string outpost = "78 3 11 4";
+	string outRank = "2 57 -17 6 -18 1 2 4 -10 13 16 -24";
+	string passed = "-5 8 -48 -5 5";
+	string pawn = "3 7 -30 -24 -8 -22 -10 8";
+	string rook = "77 9 29 11";
+	string tempo = "20 9";
 
 };
 extern SOptions options;
