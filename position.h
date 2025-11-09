@@ -5,7 +5,6 @@
 #include <utility>
 #include "tables.h"
 #include "types.h"
-#include "move.h"
 
 //A PsuedoRandom Number Generator
 class PRNG {

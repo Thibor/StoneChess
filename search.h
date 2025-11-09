@@ -3,7 +3,6 @@
 #include <string>
 #include <chrono>
 
-#include "move.h"
 #include "position.h"
 #include "program.h"
 #include "types.h"

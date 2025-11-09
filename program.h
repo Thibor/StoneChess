@@ -47,7 +47,7 @@ enum etimef {
 	FINFINITE = 128
 };
 
-struct schronos {
+struct SSearchInfo {
 	bool gameOver = false;
 	bool ponder = false;
 	bool post = true;
@@ -76,7 +76,7 @@ struct schronos {
 
 };
 
-extern schronos chronos;
+extern SSearchInfo info;
 
 void InitEval();
 Value Eval();
@@ -88,7 +88,7 @@ extern string engineName;
 std::string trim(const std::string& s);
 void SplitString(const std::string& txt, std::vector<std::string>& vStr, char ch);
 void SplitInt(const std::string& txt, std::vector<int>& vInt, char ch);
-std::string thousandSeparator(uint64_t n);
+std::string ThousandSeparator(uint64_t n);
 std::string StrToLower(std::string s);
 
 void PrintSummary(uint64_t time, uint64_t nodes);

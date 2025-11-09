@@ -123,7 +123,6 @@
   <ItemGroup>
     <ClCompile Include="eval.cpp" />
     <ClCompile Include="input.cpp" />
-    <ClCompile Include="move.cpp" />
     <ClCompile Include="picker.cpp" />
     <ClCompile Include="position.cpp" />
     <ClCompile Include="program.cpp" />
@@ -135,7 +134,6 @@
     <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="move.h" />
     <ClInclude Include="position.h" />
     <ClInclude Include="program.h" />
     <ClInclude Include="search.h" />

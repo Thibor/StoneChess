@@ -59,7 +59,7 @@ void SplitInt(const string& txt, vector<int>& vInt, char ch) {
 
 // Function to put thousands
 // separators in the given integer
-string thousandSeparator(uint64_t n)
+string ThousandSeparator(uint64_t n)
 {
     string ans = "";
 

@@ -61,10 +61,10 @@ static bool CheckTime() {
 	string input;
 	if (GetInput(input))
 		UciCommand(input);
-	if (chronos.gameOver)
+	if (info.gameOver)
 		return true;
-	chronos.gameOver = (chronos.flags & FMOVETIME) && (sd.Ms() > chronos.movetime);
-	return chronos.gameOver;
+	info.gameOver = (info.flags & FMOVETIME) && (sd.Ms() > info.movetime);
+	return info.gameOver;
 }
 
 static void ExtractPv(vector<Move>& list) {
@@ -101,7 +101,7 @@ static string ExtractPv() {
 
 //show depth score and next best move in principal variation
 static void ShowInfoPv() {
-	if (chronos.ponder || !chronos.post)
+	if (info.ponder || !info.post)
 		return;
 	U64 ms = sd.Ms();
 	U64 nps = ms ? (sd.nodes * 1000) / ms : 0;
@@ -109,12 +109,11 @@ static void ShowInfoPv() {
 		sd.bestScore < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - sd.bestScore) >> 1) :
 		"cp " + to_string(ValueToCp(sd.bestScore));
 	string pv = ExtractPv();
-	//cout << "info string phase " << g_pos.phase << endl;
 	cout << "info time " << ms << " depth " << sd.depth << " multipv " << sd.multiPV << " score " << score << " nps " << nps << " nodes " << sd.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
 }
 
 static void ShowBestMove() {
-	if (chronos.ponder || !chronos.post)
+	if (info.ponder || !info.post)
 		return;
 	//ShowInfoPv();
 	U64 proNode = sd.nodes ? ((sd.nodes - sd.nodesq) * 100) / sd.nodes : 0;
@@ -140,10 +139,10 @@ static void UpdateQuietStats(Stack* ss, Move move) {
 
 //Quiesce search
 template <NodeType nt>
-Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta) {
-	if (!(++sd.nodes & 0x1ffff))
+Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
+	if (!(++sd.nodes & 0xffff))
 		CheckTime();
-	if (chronos.gameOver)
+	if (info.gameOver)
 		return VALUE_ZERO;
 	sd.nodesq++;
 	(ss + 1)->ply = ss->ply + 1;
@@ -208,7 +207,7 @@ Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta) {
 		Move m = pe.move;
 		if ((bestMove != MOVE_NONE) && (pe.value < 0))break;
 		pos.MakeMove(m);
-		value = -SearchQuiesce<nt>(pos, ss + 1, -beta, -alpha);
+		value = -SearchQuiescence<nt>(pos, ss + 1, -beta, -alpha);
 		pos.UnmakeMove(m);
 		if (value > bestValue) {
 			bestValue = value;
@@ -235,10 +234,10 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 	if (inCheck)
 		++depth;
 	if (depth < ONE_PLY)
-		return SearchQuiesce<nt>(pos, ss, alpha, beta);
-	if (!(++sd.nodes & 0x1ffff))
+		return SearchQuiescence<nt>(pos, ss, alpha, beta);
+	if (!(++sd.nodes & 0xffff))
 		CheckTime();
-	if (chronos.gameOver)
+	if (info.gameOver)
 		return VALUE_ZERO;
 	//mate distance pruning
 	Value  mate_value = VALUE_MATE - ss->ply;
@@ -299,7 +298,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		//razoring
 		if (depth < 2 * ONE_PLY
 			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
-			return SearchQuiesce<nt>(pos, ss, alpha, beta);
+			return SearchQuiescence<nt>(pos, ss, alpha, beta);
 
 		//futility pruning
 		if (depth < 7 * ONE_PLY
@@ -374,7 +373,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 				value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		}
 		pos.UnmakeMove(m);
-		if (chronos.gameOver)
+		if (info.gameOver)
 			return VALUE_ZERO;
 		if (value > bestValue) {
 			bestMove = m;
@@ -422,7 +421,7 @@ static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, V
 		if (bestValue < value) {
 
 		}
-		if (chronos.gameOver)
+		if (info.gameOver)
 			return alpha;
 		if (bestValue < value) {
 			bestValue = value;
@@ -467,8 +466,8 @@ void SearchIterate() {
 	(ss + 1)->ply = 1;
 	std::memset(ss - 4, 0, 7 * sizeof(Stack));
 	picker.Fill();
-	if (chronos.rootMoves.size()) {
-		for (Move m : chronos.rootMoves)
+	if (info.rootMoves.size()) {
+		for (Move m : info.rootMoves)
 			picker.SetBest(m);
 		if (picker.best) {
 			picker.count = picker.best;
@@ -478,7 +477,7 @@ void SearchIterate() {
 	sd.depth = ONE_PLY;
 	sd.multiPV = 1;
 	Value score = SearchAlpha<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
-	while (!chronos.gameOver) {
+	while (!info.gameOver) {
 		score = SearchWiden(g_pos, ss, picker, sd.depth, score);
 		if (sd.bestMove != MOVE_NONE) {
 			picker.best = sd.multiPV - 1;
@@ -487,19 +486,18 @@ void SearchIterate() {
 
 		sd.multiPV++;
 		if ((sd.multiPV > options.multiPV) || (sd.multiPV > picker.count)) {
-			//for(int i=0;i<sd.multiPV;i++)cout << "move " << (i+1) << " " << picker.pList[i].move.ToUci() << endl;
 			sd.multiPV = 1;
 			if (++sd.depth > MAX_PLY)
 				break;
 		}
-		if (chronos.flags & FMOVETIME)
-			if (sd.Ms() > chronos.movetime / 2)
+		if (info.flags & FMOVETIME)
+			if (sd.Ms() > info.movetime / 2)
 				break;
-		if (chronos.flags & FDEPTH)
-			if (sd.depth > chronos.depth)
+		if (info.flags & FDEPTH)
+			if (sd.depth > info.depth)
 				break;
-		if (chronos.flags & FNODES)
-			if (sd.nodes >= chronos.nodes)
+		if (info.flags & FNODES)
+			if (sd.nodes >= info.nodes)
 				break;
 		if (abs(score) > VALUE_MATE_IN)
 			break;

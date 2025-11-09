@@ -62,28 +62,28 @@ static void ShowInfo(uint64_t time, uint64_t nodes) {
 		time = 1;
 	uint64_t nps = (nodes * 1000) / time;
 	printf("-----------------------------\n");
-	cout << "Time        : " << thousandSeparator(time) << endl;
-	cout << "Nodes       : " << thousandSeparator(nodes) << endl;
-	cout << "Nps         : " << thousandSeparator(nps) << endl;
+	cout << "Time        : " << ThousandSeparator(time) << endl;
+	cout << "Nodes       : " << ThousandSeparator(nodes) << endl;
+	cout << "Nps         : " << ThousandSeparator(nps) << endl;
 	printf("-----------------------------\n");
 }
 
 //StartPerformance test
-static void UciPerft(int s)
+static void UciPerft(int sec)
 {
 	printf("Performance Test\n");
 	uint64_t time = 0;
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	chronos.depth = 0;
+	info.depth = 0;
 	g_pos.SetFen();
-	while(time < s * 1000)
+	while(time < sec * 1000)
 	{
-		nodes += Perft(++chronos.depth);
+		nodes += Perft(++info.depth);
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 		time = duration.count();
-		cout << chronos.depth << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
+		cout << info.depth << ".\t" << ThousandSeparator(time) << "\t" << ThousandSeparator(nodes) << endl;
 	}
 	ShowInfo(time, nodes);
 }
@@ -95,18 +95,18 @@ static void UciBench(int s) {
 	uint64_t nodes = 0;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	g_pos.SetFen();
-	chronos.depth = 0;
-	chronos.post = false;
-	chronos.flags = FDEPTH;
+	info.depth = 0;
+	info.post = false;
+	info.flags = FDEPTH;
 	while (time < s * 1000)
 	{
-		chronos.depth++;
+		info.depth++;
 		SearchIterate();
 		nodes = sd.nodes;
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 		time = duration.count();
-		cout << chronos.depth << ".\t" << thousandSeparator(time) << "\t" << thousandSeparator(nodes) << endl;
+		cout << info.depth << ".\t" << ThousandSeparator(time) << "\t" << ThousandSeparator(nodes) << endl;
 	}
 	ShowInfo(time, nodes);
 }
@@ -123,18 +123,12 @@ static void UciTest() {
 	UciCommand("position fen 5rk1/ppp2ppp/8/4pP2/1P2Bb2/2P2K2/8/7R b - - 0 28");
 	//UciCommand("go movetime 3000");
 	UciCommand("go depth 3");
-	/*rootPos.SetFen("8/6K1/8/8/4Q3/2k5/8/8 w - - 0 20");
-	chronos.Reset();
-	//chronos.flags |= FINFINITE;
-	chronos.flags |= FMOVETIME;
-	chronos.depth = 3;
-	SearchIterate();*/
 }
 
 static void UciPonderhit()
 {
-	chronos.ponder = false;
-	chronos.flags &= ~FINFINITE;
+	info.ponder = false;
+	info.flags &= ~FINFINITE;
 	sd.timeStart = chrono::steady_clock::now();
 }
 
@@ -143,7 +137,7 @@ static void UciQuit() {
 }
 
 static void UciStop() {
-	chronos.gameOver = true;
+	info.gameOver = true;
 }
 
 //Supports all uci commands
@@ -215,14 +209,14 @@ void UciCommand(string str) {
 		}
 	}
 	else if (command == "go") {
-		chronos.Reset();
+		info.Reset();
 		string com2;
 		if (UciValue(split, "go", com2)) {
 			if (com2 == "infinite")
-				chronos.flags |= FINFINITE;
+				info.flags |= FINFINITE;
 			if (com2 == "ponder") {
-				chronos.ponder = true;
-				chronos.flags |= FINFINITE;
+				info.ponder = true;
+				info.flags |= FINFINITE;
 			}
 			int index = UciIndex(split, "searchmoves");
 			if (index > 0) {
@@ -230,60 +224,60 @@ void UciCommand(string str) {
 				for (int n = index + 1; n < split.size(); n++)
 					for (Move m : list)
 						if (m.ToUci() == split[n])
-							chronos.rootMoves.push_back(m);
+							info.rootMoves.push_back(m);
 			}
 		}
 		if (UciValue(split, "wtime", value))
 		{
-			chronos.flags |= FTIME;
-			chronos.time[WHITE] = stoi(value);
+			info.flags |= FTIME;
+			info.time[WHITE] = stoi(value);
 		}
 		if (UciValue(split, "btime", value))
 		{
-			chronos.flags |= FTIME;
-			chronos.time[BLACK] = stoi(value);
+			info.flags |= FTIME;
+			info.time[BLACK] = stoi(value);
 		}
 		if (UciValue(split, "winc", value))
 		{
-			chronos.flags |= FINC;
-			chronos.inc[WHITE] = stoi(value);
+			info.flags |= FINC;
+			info.inc[WHITE] = stoi(value);
 		}
 		if (UciValue(split, "binc", value))
 		{
-			chronos.flags |= FINC;
-			chronos.inc[BLACK] = stoi(value);
+			info.flags |= FINC;
+			info.inc[BLACK] = stoi(value);
 		}
 		if (UciValue(split, "movestogo", value))
 		{
-			chronos.flags |= FMOVESTOGO;
-			chronos.movestogo = stoi(value);
+			info.flags |= FMOVESTOGO;
+			info.movestogo = stoi(value);
 		}
 		if (UciValue(split, "depth", value))
 		{
-			chronos.flags |= FDEPTH;
-			chronos.depth = stoi(value);
+			info.flags |= FDEPTH;
+			info.depth = stoi(value);
 		}
 		if (UciValue(split, "nodes", value))
 		{
-			chronos.flags |= FNODES;
-			chronos.nodes = stoi(value);
+			info.flags |= FNODES;
+			info.nodes = stoi(value);
 		}
 		if (UciValue(split, "movetime", value))
 		{
-			chronos.flags |= FMOVETIME;
-			chronos.movetime = stoi(value);
+			info.flags |= FMOVETIME;
+			info.movetime = stoi(value);
 		}
 		if (UciValue(split, "searchmoves", value))
 		{
 		}
-		if (!chronos.flags)
-			chronos.flags |= FINFINITE;
-		if (chronos.flags & FTIME) {
-			chronos.flags |= FMOVETIME;
-			if (chronos.movestogo)
-				chronos.movetime = chronos.time[g_pos.ColorUs()] / chronos.movestogo;
+		if (!info.flags)
+			info.flags |= FINFINITE;
+		if (info.flags & FTIME) {
+			info.flags |= FMOVETIME;
+			if (info.movestogo)
+				info.movetime = info.time[g_pos.ColorUs()] / info.movestogo;
 			else
-				chronos.movetime = chronos.time[g_pos.ColorUs()] / 32 + chronos.inc[g_pos.ColorUs()] / 2;
+				info.movetime = info.time[g_pos.ColorUs()] / 32 + info.inc[g_pos.ColorUs()] / 2;
 		}
 		SearchIterate();
 	}
