@@ -127,18 +127,12 @@
     <ClCompile Include="position.cpp" />
     <ClCompile Include="program.cpp" />
     <ClCompile Include="search.cpp" />
-    <ClCompile Include="tables.cpp" />
     <ClCompile Include="transposition.cpp" />
     <ClCompile Include="types.cpp" />
     <ClCompile Include="uci.cpp" />
-    <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="position.h" />
     <ClInclude Include="program.h" />
-    <ClInclude Include="search.h" />
-    <ClInclude Include="tables.h" />
-    <ClInclude Include="types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

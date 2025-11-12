@@ -1,5 +1,4 @@
 #include "program.h"
-#include "types.h"
 
 using namespace std;
 
@@ -39,76 +38,93 @@ static bool UciValues(vector<string> list, string command, string& value) {
 }
 
 //Performance test
-static uint64_t Perft(int depth)
+static inline void PerftDriver(int depth)
 {
-	uint64_t nodes = 0;
+	if (!depth)
+	{
+		info.nodes++;
+		return;
+	}
 	int count;
 	Move list[256];
 	g_pos.MoveList(g_pos.ColorUs(), list, count);
-	if (depth == 1)
-		return count;
 	for (int i = 0; i < count; i++)
 	{
 		g_pos.MakeMove(list[i]);
-		nodes += Perft(depth - 1);
+		PerftDriver(depth - 1);
 		g_pos.UnmakeMove(list[i]);
 	}
-	return nodes;
 }
 
-//Displays a summary
-static void ShowInfo(uint64_t time, uint64_t nodes) {
+static int ShrinkNumber(U64 n) {
+	if (n < 1000)
+		return 0;
+	if (n < 1000000)
+		return 1;
+	if (n < 1000000000)
+		return 2;
+	return 3;
+}
+
+static void ResetLimit()
+{
+	info.stop = false;
+	info.post = true;
+	info.nodes = 0;
+	info.multiPV = 1;
+	info.depthLimit = (Depth)64;
+	info.nodesLimit = 0;
+	info.timeLimit = 0;
+	info.timeStart = GetTimeMs();
+	info.bestMove = MOVE_NONE;
+	info.ponderMove = MOVE_NONE;
+}
+
+
+//displays a summary
+static void PrintSummary(U64 time, U64 nodes) {
 	if (time < 1)
 		time = 1;
-	uint64_t nps = (nodes * 1000) / time;
+	U64 nps = (nodes * 1000) / time;
+	const char* units[] = { "", "k", "m", "g" };
+	int sn = ShrinkNumber(nps);
+	U64 p = pow(10, sn * 3);
 	printf("-----------------------------\n");
-	cout << "Time        : " << ThousandSeparator(time) << endl;
-	cout << "Nodes       : " << ThousandSeparator(nodes) << endl;
-	cout << "Nps         : " << ThousandSeparator(nps) << endl;
+	printf("Time        : %llu\n", time);
+	printf("Nodes       : %llu\n", nodes);
+	printf("Nps         : %llu (%llu%s/s)\n", nps, nps / p, units[sn]);
 	printf("-----------------------------\n");
 }
 
 //StartPerformance test
-static void UciPerft(int sec)
+static void UciPerft()
 {
+	ResetLimit();
 	printf("Performance Test\n");
-	uint64_t time = 0;
-	uint64_t nodes = 0;
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	info.depth = 0;
+	int depth = 0;
 	g_pos.SetFen();
-	while(time < sec * 1000)
+	while(GetTimeMs() - info.timeStart < 3000)
 	{
-		nodes += Perft(++info.depth);
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-		time = duration.count();
-		cout << info.depth << ".\t" << ThousandSeparator(time) << "\t" << ThousandSeparator(nodes) << endl;
+		PerftDriver(++depth);
+		printf("%2d. %8llu %12llu\n", depth, GetTimeMs() - info.timeStart, info.nodes);
 	}
-	ShowInfo(time, nodes);
+	PrintSummary(GetTimeMs() - info.timeStart, info.nodes);
 }
 
 //Start benchamrk test
-static void UciBench(int s) {
+static void UciBench() {
+	ResetLimit();
 	printf("Benchmark Test\n");
-	uint64_t time = 0;
-	uint64_t nodes = 0;
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	g_pos.SetFen();
-	info.depth = 0;
+	info.depthLimit = DEPTH_ZERO;
 	info.post = false;
-	info.flags = FDEPTH;
-	while (time < s * 1000)
+	while (GetTimeMs() - info.timeStart < 3000)
 	{
-		info.depth++;
+		++info.depthLimit;
 		SearchIterate();
-		nodes = sd.nodes;
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-		time = duration.count();
-		cout << info.depth << ".\t" << ThousandSeparator(time) << "\t" << ThousandSeparator(nodes) << endl;
+		printf("%2d. %8llu %12llu\n", info.depthLimit, GetTimeMs() - info.timeStart, info.nodes);
 	}
-	ShowInfo(time, nodes);
+	PrintSummary(GetTimeMs() - info.timeStart, info.nodes);
 }
 
 static void UciEval() {
@@ -121,15 +137,16 @@ static void UciTest() {
 	//UciCommand("position startpos moves e2e4 e7e5 g1f3 b8c6 d2d4 g8f6 d4e5 f8b4 c2c3 e8g8 e5f6 d7d5 c3b4 c8g4 f1e2 d5d4 e1g1 d4d3 e2d3 c6e5 d3e2 d8d1 f1d1 g4f3 e2f3 f8d8 d1d8 a8d8 f3e2 a7a6 b1c3 c7c6 c1e3 b7b6 e3b6 d8d2 b2b3 c6c5 b4c5 h7h6 a1d1 d2d1 e2d1 e5c6 d1e2 g7g6 e2a6 g8f8 a2a3 f8g8 b3b4 g8h7 c3d5 h7h8 d5e7 c6e5 c5c6 e5c6 e7c6 g6g5 b6e3 h8h7 a6d3 h7h8 b4b5 h8h7 b5b6 h7g6 b6b7 g6f6 b7b8q f6g7 a3a4 g7h7 a4a5 g5g4 a5a6 f7f6 a6a7 f6f5 e4f5");
 	//UciCommand("setoption name MultiPV value 4");
 	UciCommand("position fen 5rk1/ppp2ppp/8/4pP2/1P2Bb2/2P2K2/8/7R b - - 0 28");
-	//UciCommand("go movetime 3000");
 	UciCommand("go depth 3");
 }
 
 static void UciPonderhit()
 {
+	info.infinite = false;
 	info.ponder = false;
-	info.flags &= ~FINFINITE;
-	sd.timeStart = chrono::steady_clock::now();
+	info.post = true;
+	info.stop = false;
+	info.timeStart = GetTimeMs();
 }
 
 static void UciQuit() {
@@ -137,7 +154,7 @@ static void UciQuit() {
 }
 
 static void UciStop() {
-	info.gameOver = true;
+	info.stop = true;
 }
 
 //Supports all uci commands
@@ -209,14 +226,22 @@ void UciCommand(string str) {
 		}
 	}
 	else if (command == "go") {
-		info.Reset();
+		ResetLimit();
+		int depth = DEPTH_MAX;
+		int nodes = 0;
+		int wtime = 0;
+		int btime = 0;
+		int winc = 0;
+		int binc = 0;
+		int movetime = 0;
+		int movestogo = 32;
 		string com2;
 		if (UciValue(split, "go", com2)) {
 			if (com2 == "infinite")
-				info.flags |= FINFINITE;
+				info.infinite=true;
 			if (com2 == "ponder") {
 				info.ponder = true;
-				info.flags |= FINFINITE;
+				info.infinite = true;
 			}
 			int index = UciIndex(split, "searchmoves");
 			if (index > 0) {
@@ -228,57 +253,27 @@ void UciCommand(string str) {
 			}
 		}
 		if (UciValue(split, "wtime", value))
-		{
-			info.flags |= FTIME;
-			info.time[WHITE] = stoi(value);
-		}
+			wtime = stoi(value);
 		if (UciValue(split, "btime", value))
-		{
-			info.flags |= FTIME;
-			info.time[BLACK] = stoi(value);
-		}
+			btime = stoi(value);
 		if (UciValue(split, "winc", value))
-		{
-			info.flags |= FINC;
-			info.inc[WHITE] = stoi(value);
-		}
+			winc = stoi(value);
 		if (UciValue(split, "binc", value))
-		{
-			info.flags |= FINC;
-			info.inc[BLACK] = stoi(value);
-		}
+			binc = stoi(value);
 		if (UciValue(split, "movestogo", value))
-		{
-			info.flags |= FMOVESTOGO;
-			info.movestogo = stoi(value);
-		}
+			movestogo = stoi(value);
 		if (UciValue(split, "depth", value))
-		{
-			info.flags |= FDEPTH;
-			info.depth = stoi(value);
-		}
+			depth = stoi(value);
 		if (UciValue(split, "nodes", value))
-		{
-			info.flags |= FNODES;
-			info.nodes = stoi(value);
-		}
+			nodes = stoi(value);
 		if (UciValue(split, "movetime", value))
-		{
-			info.flags |= FMOVETIME;
-			info.movetime = stoi(value);
-		}
-		if (UciValue(split, "searchmoves", value))
-		{
-		}
-		if (!info.flags)
-			info.flags |= FINFINITE;
-		if (info.flags & FTIME) {
-			info.flags |= FMOVETIME;
-			if (info.movestogo)
-				info.movetime = info.time[g_pos.ColorUs()] / info.movestogo;
-			else
-				info.movetime = info.time[g_pos.ColorUs()] / 32 + info.inc[g_pos.ColorUs()] / 2;
-		}
+			movetime = stoi(value);
+		int time = g_pos.color ? btime : wtime;
+		int inc = g_pos.color ? binc : winc;
+		int st = min(time / movestogo + inc, time / 2);
+		info.depthLimit = (Depth)depth;
+		info.nodesLimit = nodes;
+		info.timeLimit = movetime ? movetime : st;
 		SearchIterate();
 	}
 	else if (command == "ponderhit")
@@ -339,18 +334,10 @@ void UciCommand(string str) {
 				options.defense = value;
 		}
 	}
-	else if (command == "bench") {
-		if (UciValue(split, "bench", value))
-			UciBench(stoi(value));
-		else
-			UciBench(1);
-	}
-	else if (command == "perft") {
-		if (UciValue(split, "perft", value))
-			UciPerft(stoi(value));
-		else
-			UciPerft(1);
-	}
+	else if (command == "bench") 
+			UciBench();
+	else if (command == "perft")
+			UciPerft();
 	else if (command == "eval")
 		UciEval();
 	else if (command == "print")

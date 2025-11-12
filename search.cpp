@@ -1,4 +1,4 @@
-#include "search.h"
+#include "program.h"
 
 int RFP_MARGIN;
 int FUTILITY_MARGIN;
@@ -11,7 +11,7 @@ int FutilityMoveCounts[2][16]; // [improving][depth]
 int Reductions[2][2][64][64];  // [pv][improving][depth][moveNumber]
 
 template <bool PvNode> Depth reduction(bool i, Depth d, int mn) {
-	return Reductions[PvNode][i][std::min(d / ONE_PLY, 63)][std::min(mn, 63)] * ONE_PLY;
+	return Reductions[PvNode][i][min(d / ONE_PLY, 63)][min(mn, 63)] * ONE_PLY;
 }
 
 struct Stack {
@@ -21,8 +21,6 @@ struct Stack {
 	Value staticEval = VALUE_ZERO;
 	Value staticValue = VALUE_ZERO;
 };
-
-sSearchDriver sd;
 
 void InitSearch() {
 	RFP_MARGIN = options.rfp;
@@ -40,7 +38,7 @@ void InitSearch() {
 				double r = log(d) * log(mc) / (LMR_MARGIN / 100.0);
 
 				Reductions[NONPV][imp][d][mc] = int(std::round(r));
-				Reductions[PV][imp][d][mc] = std::max(Reductions[NONPV][imp][d][mc] - 1, 0);
+				Reductions[PV][imp][d][mc] = max(Reductions[NONPV][imp][d][mc] - 1, 0);
 
 				// Increase reduction for non-PV nodes when eval is not improving
 				if (!imp && r > 1.0)
@@ -53,18 +51,6 @@ void InitSearch() {
 		FutilityMoveCounts[1][d] = int(5.0 + 1.00 * pow(d, 2.00));
 	}
 
-}
-
-
-//Check for time
-static bool CheckTime() {
-	string input;
-	if (GetInput(input))
-		UciCommand(input);
-	if (info.gameOver)
-		return true;
-	info.gameOver = (info.flags & FMOVETIME) && (sd.Ms() > info.movetime);
-	return info.gameOver;
 }
 
 static void ExtractPv(vector<Move>& list) {
@@ -85,43 +71,39 @@ static void ExtractPv(vector<Move>& list) {
 }
 
 static string ExtractPv() {
-	g_pos.MakeMove(sd.bestMove);
+	g_pos.MakeMove(info.bestMove);
 	string pv = "";
 	vector<Move> list;
 	ExtractPv(list);
-	sd.ponderMove = list.size() ? list[0] : MOVE_NONE;
+	info.ponderMove = list.size() ? list[0] : MOVE_NONE;
 	for (int n = (int)list.size() - 1; n >= 0; n--) {
 		Move move = list[n];
 		pv = " " + move.ToUci() + pv;
 		g_pos.UnmakeMove(move);
 	}
-	g_pos.UnmakeMove(sd.bestMove);
-	return sd.bestMove.ToUci() + pv;
+	g_pos.UnmakeMove(info.bestMove);
+	return info.bestMove.ToUci() + pv;
 }
 
 //show depth score and next best move in principal variation
-static void ShowInfoPv() {
+static void ShowInfoPv(Depth depth,Value value) {
 	if (info.ponder || !info.post)
 		return;
-	U64 ms = sd.Ms();
-	U64 nps = ms ? (sd.nodes * 1000) / ms : 0;
-	string score = sd.bestScore > VALUE_MATE_IN ? "mate " + to_string((VALUE_MATE - sd.bestScore + 1) >> 1) :
-		sd.bestScore < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - sd.bestScore) >> 1) :
-		"cp " + to_string(ValueToCp(sd.bestScore));
+	U64 ms = ElapsedMs();
+	U64 nps = ms ? (info.nodes * 1000) / ms : 0;
+	string score = value > VALUE_MATE_IN ? "mate " + to_string((VALUE_MATE - value + 1) >> 1) :
+		value < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - value) >> 1) :
+		"cp " + to_string(ValueToCp(value));
 	string pv = ExtractPv();
-	cout << "info time " << ms << " depth " << sd.depth << " multipv " << sd.multiPV << " score " << score << " nps " << nps << " nodes " << sd.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
+	cout << "info time " << ms << " depth " << depth << " multipv " << info.multiPV << " score " << score << " nps " << nps << " nodes " << info.nodes << " hashfull " << tt.Permill() << " pv " << pv << endl;
 }
 
 static void ShowBestMove() {
 	if (info.ponder || !info.post)
 		return;
-	//ShowInfoPv();
-	U64 proNode = sd.nodes ? ((sd.nodes - sd.nodesq) * 100) / sd.nodes : 0;
-	int proMove = sd.moveSetTry ? (sd.moveOk * 100) / sd.moveSetTry : 0;
-	cout << "info string quiesce " << proNode << '%' << " hash " << proMove << '%' << endl;
-	cout << "bestmove " << sd.bestMove.ToUci();
-	if (options.ponder && sd.ponderMove.move)
-		cout << " ponder " << sd.ponderMove.ToUci();
+	cout << "bestmove " << info.bestMove.ToUci();
+	if (options.ponder && info.ponderMove.move)
+		cout << " ponder " << info.ponderMove.ToUci();
 	cout << endl;
 }
 
@@ -140,11 +122,10 @@ static void UpdateQuietStats(Stack* ss, Move move) {
 //Quiesce search
 template <NodeType nt>
 Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
-	if (!(++sd.nodes & 0xffff))
-		CheckTime();
-	if (info.gameOver)
+	if (!(info.nodes & 0xffff))
+		CheckUp();
+	if (info.stop)
 		return VALUE_ZERO;
-	sd.nodesq++;
 	(ss + 1)->ply = ss->ply + 1;
 	Value staticEval = ss->staticEval = Eval();
 	Value value = staticEval;
@@ -226,7 +207,6 @@ Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
 //Main search loop
 template <NodeType nt>
 static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Value beta, bool doNull = true) {
-	// Step 1.
 	if ((pos.move50 >= 100) || (pos.IsRepetition()))
 		return VALUE_ZERO;
 	Value value;
@@ -235,9 +215,9 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		++depth;
 	if (depth < ONE_PLY)
 		return SearchQuiescence<nt>(pos, ss, alpha, beta);
-	if (!(++sd.nodes & 0xffff))
-		CheckTime();
-	if (info.gameOver)
+	if (!(++info.nodes & 0xffff))
+		CheckUp();
+	if (info.stop)
 		return VALUE_ZERO;
 	//mate distance pruning
 	Value  mate_value = VALUE_MATE - ss->ply;
@@ -323,7 +303,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 			&& staticEval >= beta
 			&& pos.NotOnlyPawns()) {
 			pos.MakeNull();
-			Depth R = ((NULL_MARGIN + 67 * depth / ONE_PLY) / 256 + std::min(int(staticEval - beta) / 200, 3)) * ONE_PLY;
+			Depth R = ((NULL_MARGIN + 67 * depth / ONE_PLY) / 256 + min(int(staticEval - beta) / 200, 3)) * ONE_PLY;
 			Value nullValue = -SearchAlpha<NONPV>(pos, ss + 1, depth - R, -beta, -beta + 1, false);
 			pos.UnmakeNull();
 			if (nullValue >= beta)
@@ -373,7 +353,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 				value = -SearchAlpha<PV>(pos, ss + 1, depth - ONE_PLY, -beta, -alpha);
 		}
 		pos.UnmakeMove(m);
-		if (info.gameOver)
+		if (info.stop)
 			return VALUE_ZERO;
 		if (value > bestValue) {
 			bestMove = m;
@@ -400,13 +380,13 @@ static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, V
 	Value value;
 	Value bestValue = -VALUE_INFINITE;
 	Move bestMove = MOVE_NONE;
-	picker.best = sd.multiPV;
+	picker.best = info.multiPV;
 	ss->move = MOVE_NONE;
 	ss->staticEval = VALUE_ZERO;
 	(ss + 1)->ply = ss->ply + 1;
 	(ss + 2)->staticValue = VALUE_ZERO;
 	(ss + 2)->killers[0].move = (ss + 2)->killers[1].move = MOVE_NONE;
-	for (int n = sd.multiPV - 1; n < picker.count; n++) {
+	for (int n = info.multiPV - 1; n < picker.count; n++) {
 		PickerE pe = n < picker.best ? picker.pList[n] : picker.Pick(n);
 		Move move = pe.move;
 		pos.MakeMove(move);
@@ -421,15 +401,14 @@ static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, V
 		if (bestValue < value) {
 
 		}
-		if (info.gameOver)
-			return alpha;
+		if (info.stop)
+			return VALUE_ZERO;
 		if (bestValue < value) {
 			bestValue = value;
 			bestMove = move;
 			ss->staticValue = value;
-			sd.bestScore = value;
-			sd.bestMove = move;
-			ShowInfoPv();
+			info.bestMove = move;
+			ShowInfoPv(depth,value);
 			if (value >= beta)
 				break;
 			alpha = value;
@@ -453,7 +432,6 @@ static Value SearchWiden(Position& pos, Stack* ss, Picker& picker, Depth depth, 
 //start search
 void SearchIterate() {
 	bool inCheck = g_pos.InCheck();
-	sd.Restart();
 	tt.age++;
 	Picker picker;
 	g_pos.MoveList(g_pos.ColorUs(), picker.mList, picker.count);
@@ -474,34 +452,27 @@ void SearchIterate() {
 			picker.best = 0;
 		}
 	}
-	sd.depth = ONE_PLY;
-	sd.multiPV = 1;
+	info.multiPV = 1;
 	Value score = SearchAlpha<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
-	while (!info.gameOver) {
-		score = SearchWiden(g_pos, ss, picker, sd.depth, score);
-		if (sd.bestMove != MOVE_NONE) {
-			picker.best = sd.multiPV - 1;
-			picker.SetBest(sd.bestMove);
+	for (Depth depth = ONE_PLY; depth <= info.depthLimit;++depth) {
+		score = SearchWiden(g_pos, ss, picker, depth, score);
+		if (info.bestMove != MOVE_NONE) {
+			picker.best = info.multiPV - 1;
+			picker.SetBest(info.bestMove);
 		}
 
-		sd.multiPV++;
-		if ((sd.multiPV > options.multiPV) || (sd.multiPV > picker.count)) {
-			sd.multiPV = 1;
-			if (++sd.depth > MAX_PLY)
-				break;
+		info.multiPV++;
+		if ((info.multiPV > options.multiPV) || (info.multiPV > picker.count)) {
+			info.multiPV = 1;
 		}
-		if (info.flags & FMOVETIME)
-			if (sd.Ms() > info.movetime / 2)
-				break;
-		if (info.flags & FDEPTH)
-			if (sd.depth > info.depth)
-				break;
-		if (info.flags & FNODES)
-			if (sd.nodes >= info.nodes)
-				break;
+		CheckUp();
+		if(info.stop)
+			break;
+		if (info.timeLimit && GetTimeMs() - info.timeStart > info.timeLimit / 2)
+			break;
 		if (abs(score) > VALUE_MATE_IN)
 			break;
-		if ((picker.count == 1) && (sd.depth > 8))
+		if (picker.count == 1)
 			break;
 	}
 	ShowBestMove();
