@@ -36,9 +36,6 @@
     <ClCompile Include="transposition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="types.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="uci.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

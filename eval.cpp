@@ -1,7 +1,5 @@
 #include "program.h"
 
-using namespace std;
-
 enum Tracing { NO_TRACE, TRACE };
 
 enum Term { PASSED = 6, STRUCTURE, TERM_NB };

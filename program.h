@@ -5,13 +5,15 @@
 #include <algorithm>
 #include <vector>
 #include <sstream> 
-#include "windows.h"
-
-using namespace std;
+#include "windows.h" 
 
 #define NAME "StoneChess"
 #define VERSION "2025-09-30"
 
+
+using namespace std;
+
+#define U64 unsigned __int64
 #define U32 unsigned __int32
 #define U16 unsigned __int16
 #define U8  unsigned __int8
@@ -19,7 +21,6 @@ using namespace std;
 #define S32 signed __int32
 #define S16 signed __int16
 #define S8  signed __int8
-#define U64 unsigned __int64
 #define Bitboard unsigned __int64
 #define Hash unsigned __int64
 
@@ -276,18 +277,50 @@ extern const Bitboard SQUARE_BB[65];
 
 extern void PrintBitboard(Bitboard b);
 
-extern const Bitboard k1;
-extern const Bitboard k2;
-extern const Bitboard k4;
-extern const Bitboard kf;
+extern const Bitboard KING_ATTACKS[SQUARE_NB];
+extern const Bitboard KNIGHT_ATTACKS[SQUARE_NB];
+extern const Bitboard WHITE_PAWN_ATTACKS[SQUARE_NB];
+extern const Bitboard BLACK_PAWN_ATTACKS[SQUARE_NB];
 
-extern inline int PopCount(Bitboard x);
-extern inline int SparsePopCount(Bitboard x);
-extern inline Square pop_lsb(Bitboard* b);
+extern Bitboard reverse(Bitboard b);
+extern Bitboard sliding_attacks(Square square, Bitboard occ, Bitboard mask);
 
-extern const int DEBRUIJN64[64];
-extern const Bitboard MAGIC;
-extern constexpr Square bsf(Bitboard b);
+extern Bitboard get_rook_attacks_for_init(Square square, Bitboard occ);
+extern const Bitboard ROOK_MAGICS[SQUARE_NB];
+extern Bitboard ROOK_ATTACK_MASKS[SQUARE_NB];
+extern int ROOK_ATTACK_SHIFTS[SQUARE_NB];
+extern Bitboard ROOK_ATTACKS[SQUARE_NB][4096];
+extern void initialise_rook_attacks();
+
+
+extern constexpr Bitboard GetRookAttacks(Square square, Bitboard occ);
+extern Bitboard get_xray_rook_attacks(Square square, Bitboard occ, Bitboard blockers);
+
+extern Bitboard get_bishop_attacks_for_init(Square square, Bitboard occ);
+extern const Bitboard BISHOP_MAGICS[SQUARE_NB];
+extern Bitboard BISHOP_ATTACK_MASKS[SQUARE_NB];
+extern int BISHOP_ATTACK_SHIFTS[SQUARE_NB];
+extern Bitboard BISHOP_ATTACKS[SQUARE_NB][512];
+extern void initialise_bishop_attacks();
+
+
+extern constexpr Bitboard GetBishopAttacks(Square square, Bitboard occ);
+extern Bitboard get_xray_bishop_attacks(Square square, Bitboard occ, Bitboard blockers);
+
+extern Bitboard SQUARES_BETWEEN_BB[SQUARE_NB][SQUARE_NB];
+extern Bitboard LINE[SQUARE_NB][SQUARE_NB];
+extern Bitboard PAWN_ATTACKS[COLOR_NB][SQUARE_NB];
+extern Bitboard PSEUDO_LEGAL_ATTACKS[PT_NB][SQUARE_NB];
+extern Bitboard bbForwardFiles[COLOR_NB][SQUARE_NB];
+extern Bitboard bbForwardRank[COLOR_NB][RANK_NB];
+extern Bitboard bbPawnAttackSpan[COLOR_NB][SQUARE_NB];
+extern Bitboard bbAdjacentFiles[FILE_NB];
+extern Bitboard bbPassedPawnMask[COLOR_NB][SQUARE_NB];
+
+extern void initialise_squares_between();
+extern void initialise_line();
+extern void initialise_pseudo_legal();
+extern void InitPosition();
 
 constexpr Rank RankOf(Square s) { return Rank(s >> 3); }
 constexpr File FileOf(Square s) { return File(s & 0b111); }
@@ -306,6 +339,68 @@ constexpr Bitboard Shift(Direction D, Bitboard b) {
 		: D == SOUTH_WEST ? (b & ~MASK_FILE[FILE_A]) >> 9
 		: 0;
 }
+
+
+//Returns a bitboard containing all squares that a piece on a square can move to, in the given position
+template<PieceType P>
+constexpr Bitboard attacks(Square s, Bitboard occ) {
+	static_assert(P != PAWN, "The piece type may not be a pawn; use pawn_attacks instead");
+	return P == ROOK ? GetRookAttacks(s, occ) :
+		P == BISHOP ? GetBishopAttacks(s, occ) :
+		P == QUEEN ? attacks<ROOK>(s, occ) | attacks<BISHOP>(s, occ) :
+		PSEUDO_LEGAL_ATTACKS[P][s];
+}
+
+//Returns a bitboard containing all squares that a piece on a square can move to, in the given position
+//Used when the piece type is not known at compile-time
+constexpr Bitboard attacks(PieceType pt, Square s, Bitboard occ) {
+	switch (pt) {
+	case ROOK:
+		return attacks<ROOK>(s, occ);
+	case BISHOP:
+		return attacks<BISHOP>(s, occ);
+	case QUEEN:
+		return attacks<QUEEN>(s, occ);
+	default:
+		return PSEUDO_LEGAL_ATTACKS[pt][s];
+	}
+}
+
+//Returns a bitboard containing pawn attacks from all pawns in the given bitboard
+constexpr Bitboard PawnAttacks(Color c, Bitboard p) {
+	return c == WHITE ? Shift(NORTH_WEST, p) | Shift(NORTH_EAST, p) :
+		Shift(SOUTH_WEST, p) | Shift(SOUTH_EAST, p);
+}
+
+//Returns a bitboard containing pawn attacks from the pawn on the given square
+constexpr Bitboard PawnAttacks(Color c, Square s) {
+	return PAWN_ATTACKS[c][s];
+}
+
+constexpr Bitboard BBFile(Square sq) {
+	return MASK_FILE[FileOf(sq)];
+}
+
+constexpr Bitboard BBRank(Square sq) {
+	return MASK_RANK[RankOf(sq)];
+}
+
+constexpr Bitboard BBColor(Bitboard bb) {
+	return bb & bbLight ? bbLight : bbDark;
+};
+
+extern const Bitboard k1;
+extern const Bitboard k2;
+extern const Bitboard k4;
+extern const Bitboard kf;
+
+extern inline int PopCount(Bitboard x);
+extern inline int SparsePopCount(Bitboard x);
+extern inline Square pop_lsb(Bitboard* b);
+
+extern const int DEBRUIJN64[64];
+extern const Bitboard MAGIC;
+extern constexpr Square bsf(Bitboard b);
 
 constexpr Bitboard Span(Color color, Bitboard b) {
 	return color ? b | b >> 8 | b >> 16 | b >> 24 | b >> 32 : b | b << 8 | b << 16 | b << 24 | b << 32;
@@ -421,26 +516,6 @@ enum etimef {
 	FINFINITE = 128
 };
 
-struct SSearchInfo {
-	bool stop = false;
-	bool post = true;
-	bool infinite = false;
-	bool ponder = false;
-	int multiPV = 1;
-	Depth depthLimit = DEPTH_MAX;
-	S64 timeStart = 0;
-	S64 timeLimit = 0;
-	U64 nodes = 0;
-	U64 nodesLimit = 0;
-	vector<Move> rootMoves;
-	Move bestMove = MOVE_NONE;
-	Move ponderMove = MOVE_NONE;
-};
-
-extern SSearchInfo info;
-
-extern string engineName;
-
 //transposition.cpp
 enum Bound :U8 {
 	BOUND_NONE,
@@ -489,7 +564,7 @@ public:
 extern CTranspositionTable tt;
 
 //uci.cpp
-struct SOptions {
+struct Options {
 	bool ponder = true;
 	int hash = 32;
 	int elo = 2500;
@@ -517,102 +592,7 @@ struct SOptions {
 	string tempo = "20 9";
 
 };
-extern SOptions options;
-
-
-extern const Bitboard KING_ATTACKS[SQUARE_NB];
-extern const Bitboard KNIGHT_ATTACKS[SQUARE_NB];
-extern const Bitboard WHITE_PAWN_ATTACKS[SQUARE_NB];
-extern const Bitboard BLACK_PAWN_ATTACKS[SQUARE_NB];
-
-extern Bitboard reverse(Bitboard b);
-extern Bitboard sliding_attacks(Square square, Bitboard occ, Bitboard mask);
-
-extern Bitboard get_rook_attacks_for_init(Square square, Bitboard occ);
-extern const Bitboard ROOK_MAGICS[SQUARE_NB];
-extern Bitboard ROOK_ATTACK_MASKS[SQUARE_NB];
-extern int ROOK_ATTACK_SHIFTS[SQUARE_NB];
-extern Bitboard ROOK_ATTACKS[SQUARE_NB][4096];
-extern void initialise_rook_attacks();
-
-
-extern constexpr Bitboard GetRookAttacks(Square square, Bitboard occ);
-extern Bitboard get_xray_rook_attacks(Square square, Bitboard occ, Bitboard blockers);
-
-extern Bitboard get_bishop_attacks_for_init(Square square, Bitboard occ);
-extern const Bitboard BISHOP_MAGICS[SQUARE_NB];
-extern Bitboard BISHOP_ATTACK_MASKS[SQUARE_NB];
-extern int BISHOP_ATTACK_SHIFTS[SQUARE_NB];
-extern Bitboard BISHOP_ATTACKS[SQUARE_NB][512];
-extern void initialise_bishop_attacks();
-
-
-extern constexpr Bitboard GetBishopAttacks(Square square, Bitboard occ);
-extern Bitboard get_xray_bishop_attacks(Square square, Bitboard occ, Bitboard blockers);
-
-extern Bitboard SQUARES_BETWEEN_BB[SQUARE_NB][SQUARE_NB];
-extern Bitboard LINE[SQUARE_NB][SQUARE_NB];
-extern Bitboard PAWN_ATTACKS[COLOR_NB][SQUARE_NB];
-extern Bitboard PSEUDO_LEGAL_ATTACKS[PT_NB][SQUARE_NB];
-extern Bitboard bbForwardFiles[COLOR_NB][SQUARE_NB];
-extern Bitboard bbForwardRank[COLOR_NB][RANK_NB];
-extern Bitboard bbPawnAttackSpan[COLOR_NB][SQUARE_NB];
-extern Bitboard bbAdjacentFiles[FILE_NB];
-extern Bitboard bbPassedPawnMask[COLOR_NB][SQUARE_NB];
-
-extern void initialise_squares_between();
-extern void initialise_line();
-extern void initialise_pseudo_legal();
-extern void initialise_all_databases();
-
-
-//Returns a bitboard containing all squares that a piece on a square can move to, in the given position
-template<PieceType P>
-constexpr Bitboard attacks(Square s, Bitboard occ) {
-	static_assert(P != PAWN, "The piece type may not be a pawn; use pawn_attacks instead");
-	return P == ROOK ? GetRookAttacks(s, occ) :
-		P == BISHOP ? GetBishopAttacks(s, occ) :
-		P == QUEEN ? attacks<ROOK>(s, occ) | attacks<BISHOP>(s, occ) :
-		PSEUDO_LEGAL_ATTACKS[P][s];
-}
-
-//Returns a bitboard containing all squares that a piece on a square can move to, in the given position
-//Used when the piece type is not known at compile-time
-constexpr Bitboard attacks(PieceType pt, Square s, Bitboard occ) {
-	switch (pt) {
-	case ROOK:
-		return attacks<ROOK>(s, occ);
-	case BISHOP:
-		return attacks<BISHOP>(s, occ);
-	case QUEEN:
-		return attacks<QUEEN>(s, occ);
-	default:
-		return PSEUDO_LEGAL_ATTACKS[pt][s];
-	}
-}
-
-//Returns a bitboard containing pawn attacks from all pawns in the given bitboard
-constexpr Bitboard PawnAttacks(Color c, Bitboard p) {
-	return c == WHITE ? Shift(NORTH_WEST, p) | Shift(NORTH_EAST, p) :
-		Shift(SOUTH_WEST, p) | Shift(SOUTH_EAST, p);
-}
-
-//Returns a bitboard containing pawn attacks from the pawn on the given square
-constexpr Bitboard PawnAttacks(Color c, Square s) {
-	return PAWN_ATTACKS[c][s];
-}
-
-constexpr Bitboard BBFile(Square sq) {
-	return MASK_FILE[FileOf(sq)];
-}
-
-constexpr Bitboard BBRank(Square sq) {
-	return MASK_RANK[RankOf(sq)];
-}
-
-constexpr Bitboard BBColor(Bitboard bb) {
-	return bb & bbLight ? bbLight : bbDark;
-};
+extern Options options;
 
 
 //A PsuedoRandom Number Generator
@@ -789,28 +769,41 @@ private:
 	Move* last;
 };
 
-//input.cpp
-bool GetInput(std::string& s);
-int InitImput();
-//program.cpp
+struct SearchInfo {
+	bool stop = false;
+	bool post = true;
+	bool infinite = false;
+	bool ponder = false;
+	int multiPV = 1;
+	Depth depthLimit = DEPTH_MAX;
+	S64 timeStart = 0;
+	S64 timeLimit = 0;
+	U64 nodes = 0;
+	U64 nodesLimit = 0;
+	vector<Move> rootMoves;
+	Move bestMove = MOVE_NONE;
+	Move ponderMove = MOVE_NONE;
+};
+extern SearchInfo info;
+
 bool CheckUp();
-U64 ElapsedMs();
-U64 GetTimeMs();
-std::string trim(const std::string& s);
-void SplitString(const std::string& txt, std::vector<std::string>& vStr, char ch);
-void SplitInt(const std::string& txt, std::vector<int>& vInt, char ch);
-std::string StrToLower(std::string s);
-//uci.cpp
-void PrintSummary(U64 time, U64 nodes);
-void ResetLimit();
-void UciCommand(string str);
-void UciLoop();
-//eval.cpp
-void InitEval();
 Value Eval();
 Value Eval(Move m);
+void InitEval();
 Value ShowEval();
-int ValueToCp(Value v);
-//search.cpp
+U64 GetTimeMs();
 void InitSearch();
-void SearchIterate();
+void SplitInt(const std::string& txt, std::vector<int>& vInt, char ch);
+void SplitString(const std::string& txt, std::vector<std::string>& vStr, char ch);
+string thousandSeparator(uint64_t n);
+string Trim(const string& s);
+string StrToLower(std::string s);
+bool GetInput(std::string& s);
+int InitImput();
+void PrintSummary(U64 time, U64 nodes);
+void ResetLimit();
+void SearchIteratively();
+void UciBench();
+void UciCommand(string str);
+void UciLoop();
+int ValueToCp(Value v);

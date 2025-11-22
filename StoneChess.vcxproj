@@ -128,7 +128,6 @@
     <ClCompile Include="program.cpp" />
     <ClCompile Include="search.cpp" />
     <ClCompile Include="transposition.cpp" />
-    <ClCompile Include="types.cpp" />
     <ClCompile Include="uci.cpp" />
   </ItemGroup>
   <ItemGroup>

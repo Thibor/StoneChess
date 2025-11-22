@@ -1,9 +1,5 @@
 #include "program.h"
 
-using namespace std;
-
-SOptions options;
-
 //Get index of key
 static int UciIndex(vector<string> list, string command) {
 	for (size_t n = 0; n < list.size() - 1; n++)
@@ -33,8 +29,28 @@ static bool UciValues(vector<string> list, string command, string& value) {
 		else if (list[n] == command)
 			result = true;
 	}
-	value = trim(value);
+	value = Trim(value);
 	return result;
+}
+
+static void UciEval() {
+	ShowEval();
+}
+
+static void UciPonderhit(){
+	info.infinite = false;
+	info.ponder = false;
+	info.post = true;
+	info.stop = false;
+	info.timeStart = GetTimeMs();
+}
+
+static void UciQuit() {
+	exit(0);
+}
+
+static void UciStop() {
+	info.stop = true;
 }
 
 //Performance test
@@ -96,21 +112,6 @@ static void PrintSummary(U64 time, U64 nodes) {
 	printf("-----------------------------\n");
 }
 
-//StartPerformance test
-static void UciPerft()
-{
-	ResetLimit();
-	printf("Performance Test\n");
-	int depth = 0;
-	g_pos.SetFen();
-	while(GetTimeMs() - info.timeStart < 3000)
-	{
-		PerftDriver(++depth);
-		printf("%2d. %8llu %12llu\n", depth, GetTimeMs() - info.timeStart, info.nodes);
-	}
-	PrintSummary(GetTimeMs() - info.timeStart, info.nodes);
-}
-
 //Start benchamrk test
 static void UciBench() {
 	ResetLimit();
@@ -121,45 +122,30 @@ static void UciBench() {
 	while (GetTimeMs() - info.timeStart < 3000)
 	{
 		++info.depthLimit;
-		SearchIterate();
+		SearchIteratively();
 		printf("%2d. %8llu %12llu\n", info.depthLimit, GetTimeMs() - info.timeStart, info.nodes);
 	}
 	PrintSummary(GetTimeMs() - info.timeStart, info.nodes);
 }
 
-static void UciEval() {
-	ShowEval();
-}
-
-static void UciTest() {
-	Score i = S(-54, 2) * -3;
-	//cout << Mg(i) << " " << Eg(i) << endl;
-	//UciCommand("position startpos moves e2e4 e7e5 g1f3 b8c6 d2d4 g8f6 d4e5 f8b4 c2c3 e8g8 e5f6 d7d5 c3b4 c8g4 f1e2 d5d4 e1g1 d4d3 e2d3 c6e5 d3e2 d8d1 f1d1 g4f3 e2f3 f8d8 d1d8 a8d8 f3e2 a7a6 b1c3 c7c6 c1e3 b7b6 e3b6 d8d2 b2b3 c6c5 b4c5 h7h6 a1d1 d2d1 e2d1 e5c6 d1e2 g7g6 e2a6 g8f8 a2a3 f8g8 b3b4 g8h7 c3d5 h7h8 d5e7 c6e5 c5c6 e5c6 e7c6 g6g5 b6e3 h8h7 a6d3 h7h8 b4b5 h8h7 b5b6 h7g6 b6b7 g6f6 b7b8q f6g7 a3a4 g7h7 a4a5 g5g4 a5a6 f7f6 a6a7 f6f5 e4f5");
-	//UciCommand("setoption name MultiPV value 4");
-	UciCommand("position fen 5rk1/ppp2ppp/8/4pP2/1P2Bb2/2P2K2/8/7R b - - 0 28");
-	UciCommand("go depth 3");
-}
-
-static void UciPonderhit()
+//StartPerformance test
+static void UciPerformance()
 {
-	info.infinite = false;
-	info.ponder = false;
-	info.post = true;
-	info.stop = false;
-	info.timeStart = GetTimeMs();
-}
-
-static void UciQuit() {
-	exit(0);
-}
-
-static void UciStop() {
-	info.stop = true;
+	ResetLimit();
+	printf("Performance Test\n");
+	int depth = 0;
+	g_pos.SetFen();
+	while (GetTimeMs() - info.timeStart < 3000)
+	{
+		PerftDriver(++depth);
+		printf("%2d. %8llu %12llu\n", depth, GetTimeMs() - info.timeStart, info.nodes);
+	}
+	PrintSummary(GetTimeMs() - info.timeStart, info.nodes);
 }
 
 //Supports all uci commands
 void UciCommand(string str) {
-	str = trim(str);
+	str = Trim(str);
 	string value;
 	vector<string> split{};
 	SplitString(str, split, ' ');
@@ -216,7 +202,7 @@ void UciCommand(string str) {
 			else if (split[i] == "moves")
 				mark = 2;
 		}
-		fen = trim(fen);
+		fen = Trim(fen);
 		g_pos.SetFen(fen == "" ? DEFAULT_FEN : fen);
 		for (string uci : moves) {
 			CMoveList list = CMoveList(g_pos);
@@ -238,7 +224,7 @@ void UciCommand(string str) {
 		string com2;
 		if (UciValue(split, "go", com2)) {
 			if (com2 == "infinite")
-				info.infinite=true;
+				info.infinite = true;
 			if (com2 == "ponder") {
 				info.ponder = true;
 				info.infinite = true;
@@ -274,7 +260,7 @@ void UciCommand(string str) {
 		info.depthLimit = (Depth)depth;
 		info.nodesLimit = nodes;
 		info.timeLimit = movetime ? movetime : st;
-		SearchIterate();
+		SearchIteratively();
 	}
 	else if (command == "ponderhit")
 		UciPonderhit();
@@ -334,29 +320,18 @@ void UciCommand(string str) {
 				options.defense = value;
 		}
 	}
-	else if (command == "bench") 
-			UciBench();
+	else if (command == "bench")
+		UciBench();
 	else if (command == "perft")
-			UciPerft();
+		UciPerformance();
 	else if (command == "eval")
 		UciEval();
 	else if (command == "print")
 		g_pos.PrintBoard();
-	else if (command == "test")
-		UciTest();
 }
 
 //main uci loop
 void UciLoop() {
-	//UciCommand("position fen 3k4/5Q2/3Np1p1/1pPp4/6n1/P3PN2/5PPP/R3K2R b KQ - 0 25");
-	//std::cout << position << std::endl;
-	//UciCommand("go infinite");
-	/*Score s = S(3200, -3200);
-	//Score s = S(0, -32768);
-	s -= S(100, -100)*2;
-	Value mg = Mg(s);
-	Value eg = Eg(s);
-	cout << mg << " " << eg << endl;*/
 	string line;
 	while (true) {
 		getline(cin, line);

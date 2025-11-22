@@ -35,8 +35,8 @@ bool Picker::SetBest(Move m) {
 	for (int n = best; n < count; n++)
 		if (pList[n].move == m) {
 			PickerE pe = pList[n];
-			pList[n]=pList[best];
-			pList[best++]=pe;
+			pList[n] = pList[best];
+			pList[best++] = pe;
 			return true;
 		}
 	return false;

@@ -86,10 +86,10 @@ static string ExtractPv() {
 }
 
 //show depth score and next best move in principal variation
-static void ShowInfoPv(Depth depth,Value value) {
+static void ShowInfoPv(Depth depth, Value value) {
 	if (info.ponder || !info.post)
 		return;
-	U64 ms = ElapsedMs();
+	U64 ms = GetTimeMs() - info.timeStart;
 	U64 nps = ms ? (info.nodes * 1000) / ms : 0;
 	string score = value > VALUE_MATE_IN ? "mate " + to_string((VALUE_MATE - value + 1) >> 1) :
 		value < VALUE_MATED_IN ? "mate " + to_string((-VALUE_MATE - value) >> 1) :
@@ -121,8 +121,8 @@ static void UpdateQuietStats(Stack* ss, Move move) {
 
 //Quiesce search
 template <NodeType nt>
-Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
-	if (!(info.nodes & 0xffff))
+Value SearchQuiesce(Position& pos, Stack* ss, Value alpha, Value beta) {
+	if (!(++info.nodes & 0xffff))
 		CheckUp();
 	if (info.stop)
 		return VALUE_ZERO;
@@ -188,7 +188,7 @@ Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
 		Move m = pe.move;
 		if ((bestMove != MOVE_NONE) && (pe.value < 0))break;
 		pos.MakeMove(m);
-		value = -SearchQuiescence<nt>(pos, ss + 1, -beta, -alpha);
+		value = -SearchQuiesce<nt>(pos, ss + 1, -beta, -alpha);
 		pos.UnmakeMove(m);
 		if (value > bestValue) {
 			bestValue = value;
@@ -207,6 +207,7 @@ Value SearchQuiescence(Position& pos, Stack* ss, Value alpha, Value beta) {
 //Main search loop
 template <NodeType nt>
 static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Value beta, bool doNull = true) {
+	// Step 1.
 	if ((pos.move50 >= 100) || (pos.IsRepetition()))
 		return VALUE_ZERO;
 	Value value;
@@ -214,7 +215,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 	if (inCheck)
 		++depth;
 	if (depth < ONE_PLY)
-		return SearchQuiescence<nt>(pos, ss, alpha, beta);
+		return SearchQuiesce<nt>(pos, ss, alpha, beta);
 	if (!(++info.nodes & 0xffff))
 		CheckUp();
 	if (info.stop)
@@ -278,7 +279,7 @@ static Value SearchAlpha(Position& pos, Stack* ss, Depth depth, Value alpha, Val
 		//razoring
 		if (depth < 2 * ONE_PLY
 			&& alpha - staticEval >(RAZOR_MARGIN * depth) / td)
-			return SearchQuiescence<nt>(pos, ss, alpha, beta);
+			return SearchQuiesce<nt>(pos, ss, alpha, beta);
 
 		//futility pruning
 		if (depth < 7 * ONE_PLY
@@ -408,7 +409,7 @@ static Value SearchRoot(Position& pos, Stack* ss, Picker& picker, Depth depth, V
 			bestMove = move;
 			ss->staticValue = value;
 			info.bestMove = move;
-			ShowInfoPv(depth,value);
+			ShowInfoPv(depth, value);
 			if (value >= beta)
 				break;
 			alpha = value;
@@ -430,7 +431,7 @@ static Value SearchWiden(Position& pos, Stack* ss, Picker& picker, Depth depth, 
 }
 
 //start search
-void SearchIterate() {
+void SearchIteratively() {
 	bool inCheck = g_pos.InCheck();
 	tt.age++;
 	Picker picker;
@@ -454,7 +455,7 @@ void SearchIterate() {
 	}
 	info.multiPV = 1;
 	Value score = SearchAlpha<PV>(g_pos, ss, ONE_PLY, -VALUE_MATE, VALUE_MATE);
-	for (Depth depth = ONE_PLY; depth <= info.depthLimit;++depth) {
+	for (Depth depth = ONE_PLY; depth <= info.depthLimit; ++depth) {
 		score = SearchWiden(g_pos, ss, picker, depth, score);
 		if (info.bestMove != MOVE_NONE) {
 			picker.best = info.multiPV - 1;
@@ -466,7 +467,7 @@ void SearchIterate() {
 			info.multiPV = 1;
 		}
 		CheckUp();
-		if(info.stop)
+		if (info.stop)
 			break;
 		if (info.timeLimit && GetTimeMs() - info.timeStart > info.timeLimit / 2)
 			break;
